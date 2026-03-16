@@ -122,38 +122,115 @@ The agent connects to the Hub, registers, and starts sending heartbeats. You sho
 
 ## Docker Deployment
 
-For production, run everything in Docker:
+### Option A: Docker on a Linux Server or VM
+
+**Prerequisites:** Docker Engine and Docker Compose installed.
 
 ```bash
-# Copy and edit the environment file
-cp .env.example .env
+# Step 1: Clone the repository
+git clone https://github.com/lasswellt/claudeHQ.git
+cd claudeHQ
 
-# Build and start
+# Step 2: Create your environment file
+cp .env.example .env
+# Edit .env if you want to change the port or log level
+
+# Step 3: Create data directories (Docker will mount these)
+mkdir -p data/db data/recordings
+
+# Step 4: Build the Docker image
+# This uses a multi-stage build: installs deps, builds TypeScript,
+# copies only production artifacts into the final image (~250MB)
+docker compose build
+
+# Step 5: Start the Hub
+docker compose up -d
+
+# Step 6: Verify it's running
+curl http://localhost:7700/health
+# {"status":"ok","version":"0.1.0","uptime":1.23,"machines":0,"connectedAgents":0}
+
+# Step 7: Open the dashboard
+# Navigate to http://localhost:7700 in your browser
+# (In production, the Hub serves the dashboard's static files directly)
+```
+
+**Useful commands:**
+
+```bash
+docker compose logs -f          # Watch logs
+docker compose down             # Stop
+docker compose up -d            # Start again (data persists in ./data/)
+docker compose build --pull     # Rebuild with latest base image
+```
+
+### Option B: Docker on WSL2 (Windows)
+
+If you're running on a Windows machine with WSL2:
+
+```bash
+# Step 1: Open your WSL2 terminal (Ubuntu recommended)
+# Make sure Docker is available inside WSL2:
+docker --version     # Should show Docker version
+docker compose version  # Should show Compose version
+
+# If Docker isn't installed in WSL2, install it:
+# Option A: Docker Desktop (enable WSL2 backend in Docker Desktop settings)
+# Option B: Docker Engine directly in WSL2:
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2
+sudo usermod -aG docker $USER
+# Log out and back in for group to take effect
+
+# Step 2: Clone the repo INSIDE WSL2's filesystem (NOT /mnt/c/)
+# This is critical for performance — /mnt/c/ is 10-50x slower
+cd ~
+git clone https://github.com/lasswellt/claudeHQ.git
+cd claudeHQ
+
+# Step 3: Create environment and data directories
+cp .env.example .env
+mkdir -p data/db data/recordings
+
+# Step 4: Build and start
 docker compose build
 docker compose up -d
 
-# Verify
+# Step 5: Verify
 curl http://localhost:7700/health
+
+# Step 6: Access from Windows browser
+# The dashboard is available at http://localhost:7700
+# WSL2 automatically forwards ports to Windows (localhost forwarding)
 ```
 
-The Hub serves the dashboard's static files directly -- one container, one port.
+**WSL2-specific notes:**
 
-### Docker Compose Services
+- Always clone repos to the Linux filesystem (`~/projects/`), NOT `/mnt/c/Users/...`. The Windows mount is dramatically slower for I/O-intensive operations like npm install and SQLite.
+- If `localhost` forwarding doesn't work, find your WSL2 IP: `hostname -I` and use that IP in the browser.
+- To auto-start the Hub on Windows boot, create a Windows Task Scheduler task that runs `wsl -d Ubuntu -- docker compose -f ~/claudeHQ/docker-compose.yml up -d`.
+- Docker Desktop's WSL2 backend is easiest. If using Docker Engine directly in WSL2, make sure systemd is enabled (`[boot] systemd=true` in `/etc/wsl.conf`).
 
-```yaml
-services:
-  hub:
-    build: { context: ., dockerfile: Dockerfile.hub }
-    ports: ["7700:7700"]
-    volumes:
-      - ./data/db:/app/data/db          # SQLite persistence
-      - ./data/recordings:/app/data/recordings  # Session recordings
-    restart: unless-stopped
+### Option C: Docker with Tailscale (Multi-Machine)
+
+If you want agents on other machines to connect to the Hub:
+
+```bash
+# On the Hub machine:
+cd claudeHQ
+
+# Edit .env to add your Tailscale auth key
+# Get one at: https://login.tailscale.com/admin/settings/keys
+echo "TS_AUTHKEY=tskey-auth-xxxxx" >> .env
+
+# Use the Tailscale-enabled compose file
+docker compose -f docker-compose.yml up -d
+
+# The Hub will be accessible at its Tailscale IP (100.x.x.x:7700)
+# and at claude-hq.<your-tailnet>.ts.net if using Tailscale Serve
 ```
 
-### With Tailscale Sidecar
-
-For mesh networking with automatic TLS:
+Compose with Tailscale sidecar:
 
 ```yaml
 services:
@@ -167,12 +244,72 @@ services:
       - ts-state:/var/lib/tailscale
     devices: ["/dev/net/tun:/dev/net/tun"]
     cap_add: [net_admin, sys_module]
+    restart: unless-stopped
 
   hub:
     build: { context: ., dockerfile: Dockerfile.hub }
-    network_mode: service:tailscale
-    # ... rest of config
+    network_mode: service:tailscale    # Shares Tailscale's network
+    environment:
+      - CHQ_HUB_PORT=7700
+    volumes:
+      - ./data/db:/app/data/db
+      - ./data/recordings:/app/data/recordings
+    depends_on: [tailscale]
+    restart: unless-stopped
+
+volumes:
+  ts-state:
 ```
+
+### Connecting an Agent to a Dockerized Hub
+
+The Agent runs on machines where you want Claude Code to execute. It does NOT run inside the Hub's Docker container — it runs separately (bare metal, its own Docker container, or in WSL2).
+
+```bash
+# On the agent machine (must have Claude Code installed):
+# 1. Install Claude Code
+curl -fsSL https://claude.ai/install.sh | bash
+
+# 2. Install Node.js >= 20
+# (use nvm, fnm, or system package manager)
+
+# 3. Clone Claude HQ and build the agent
+git clone https://github.com/lasswellt/claudeHQ.git
+cd claudeHQ
+corepack enable
+pnpm install
+pnpm turbo build --filter=@chq/shared --filter=@chq/agent
+
+# 4. Configure the agent
+mkdir -p ~/.chq
+cat > ~/.chq/config.json << 'EOF'
+{
+  "machineId": "my-agent-machine",
+  "displayName": "My Agent Machine",
+  "hubUrl": "ws://HUB_IP_OR_TAILSCALE_IP:7700",
+  "maxConcurrentSessions": 2
+}
+EOF
+
+# 5. Start the agent
+cd packages/agent
+node dist/cli.js agent start
+# Agent will connect to the Hub and appear in the dashboard
+```
+
+### What's in the Docker Image
+
+The `Dockerfile.hub` uses a multi-stage build:
+
+```
+Stage 1: turbo prune    — Extract only hub + shared packages from the monorepo
+Stage 2: pnpm install   — Install dependencies (with native module compilation)
+Stage 3: turbo build     — Compile TypeScript
+Stage 4: prod deps      — Install production-only dependencies
+Stage 5: runtime        — node:22-bookworm-slim with built artifacts + dashboard static files
+```
+
+Final image: ~250MB. Base is Debian (not Alpine) because `better-sqlite3` needs glibc.
 
 ## Configuration
 
