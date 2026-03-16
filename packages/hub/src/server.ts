@@ -17,6 +17,8 @@ import { templateRoutes } from './routes/templates.js';
 import { healthHistoryRoutes } from './routes/health.js';
 import { repoRoutes } from './routes/repos.js';
 import { jobRoutes } from './routes/jobs.js';
+import { githubRoutes } from './routes/github.js';
+import { GitHubClient } from './github/client.js';
 
 export async function createServer(config: HubConfig): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({
@@ -98,6 +100,9 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   await healthHistoryRoutes(app, db);
   await repoRoutes(app, db);
   await jobRoutes(app, db, agentHandler);
+  const githubClient = new GitHubClient(db, app.log);
+  await githubClient.initialize();
+  await githubRoutes(app, db, githubClient);
 
   // SPA fallback
   app.setNotFoundHandler((req, reply) => {
