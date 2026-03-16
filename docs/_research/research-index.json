@@ -52,5 +52,14 @@
     "packages": ["hub", "dashboard", "agent", "shared"],
     "status": "complete",
     "path": "docs/_research/2026-03-15_self-hosted-docker-deployment.md"
+  },
+  {
+    "slug": "container-orchestration-sandboxed-autonomy",
+    "title": "Container Orchestration with Sandboxed Autonomy: Hub-Managed Docker for Claude Code",
+    "date": "2026-03-16",
+    "tags": ["docker", "orchestration", "containers", "sandbox", "security", "autonomy", "volumes", "worktrees"],
+    "packages": ["hub", "agent", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md"
   }
 ]
