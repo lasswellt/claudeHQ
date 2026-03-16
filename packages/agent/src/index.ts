@@ -8,3 +8,6 @@ export { TaskQueue } from './queue.js';
 export { Scrubber } from './scrubber.js';
 export * from './git-ops.js';
 export { provisionWorkspace, detectPackageManager, detectNodeVersion } from './workspace-provisioner.js';
+export { createDockerExecSpawn, createDockerRunSpawn } from './spawn-docker.js';
+export { createSshSpawn } from './spawn-ssh.js';
+export { detectDevcontainer, getDevcontainerImage } from './devcontainer.js';
