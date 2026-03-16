@@ -1,0 +1,23 @@
+{
+  "sprintId": "sprint-009",
+  "number": 9,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-036", "EPIC-037", "EPIC-038", "EPIC-039"],
+  "storyCount": 8,
+  "totalPoints": 30,
+  "breakdown": {
+    "hub": { "stories": 5, "points": 18 },
+    "dashboard": { "stories": 3, "points": 12 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "009-001", "title": "Hub auto-scheduling algorithm", "epic": "EPIC-036", "pkg": "hub", "points": 3 },
+    { "id": "009-002", "title": "Hub session_costs table + cost tracking", "epic": "EPIC-037", "pkg": "hub", "points": 3 },
+    { "id": "009-003", "title": "Hub budget enforcement (per-session, daily, global)", "epic": "EPIC-037", "pkg": "hub", "points": 3 },
+    { "id": "009-004", "title": "Hub scheduled_tasks table + cron runner", "epic": "EPIC-038", "pkg": "hub", "points": 5 },
+    { "id": "009-005", "title": "Hub job dependency resolver + retry logic", "epic": "EPIC-039", "pkg": "hub", "points": 4 },
+    { "id": "009-006", "title": "Dashboard cost dashboard page", "epic": "EPIC-037", "pkg": "dashboard", "points": 5 },
+    { "id": "009-007", "title": "Dashboard scheduled tasks page", "epic": "EPIC-038", "pkg": "dashboard", "points": 4 },
+    { "id": "009-008", "title": "Dashboard batch launcher enhancement", "epic": "EPIC-037", "pkg": "dashboard", "points": 3 }
+  ]
+}

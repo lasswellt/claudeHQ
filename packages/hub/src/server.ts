@@ -19,6 +19,8 @@ import { repoRoutes } from './routes/repos.js';
 import { jobRoutes } from './routes/jobs.js';
 import { githubRoutes } from './routes/github.js';
 import { GitHubClient } from './github/client.js';
+import { costRoutes } from './routes/costs.js';
+import { scheduledTaskRoutes } from './routes/scheduled-tasks.js';
 
 export async function createServer(config: HubConfig): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({
@@ -103,6 +105,8 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   const githubClient = new GitHubClient(db, app.log);
   await githubClient.initialize();
   await githubRoutes(app, db, githubClient);
+  await costRoutes(app, db);
+  await scheduledTaskRoutes(app, db);
 
   // SPA fallback
   app.setNotFoundHandler((req, reply) => {

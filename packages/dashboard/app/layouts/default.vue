@@ -14,7 +14,9 @@ const navItems = [
   { title: 'Sessions', icon: 'mdi-console', to: '/sessions' },
   { title: 'Machines', icon: 'mdi-server', to: '/machines' },
   { title: 'Queue', icon: 'mdi-playlist-play', to: '/queues' },
+  { title: 'Scheduled', icon: 'mdi-clock-outline', to: '/scheduled-tasks' },
   { title: 'Approvals', icon: 'mdi-shield-check', to: '/approvals' },
+  { title: 'Costs', icon: 'mdi-currency-usd', to: '/costs' },
   { title: 'Settings', icon: 'mdi-cog', to: '/settings/approval-policies' },
 ];
 
