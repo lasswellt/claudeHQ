@@ -86,6 +86,54 @@ export async function sessionRoutes(
     return reply.code(201).send(dal.getSession(sessionId));
   });
 
+  // Resume session
+  const resumeBody = z.object({
+    prompt: z.string().min(1),
+  });
+
+  app.post<{ Params: { id: string } }>('/api/sessions/:id/resume', async (req, reply) => {
+    const parent = dal.getSession(req.params.id);
+    if (!parent) return reply.code(404).send({ error: 'Session not found' });
+
+    if (parent.status !== 'completed' && parent.status !== 'failed') {
+      return reply.code(400).send({ error: 'Can only resume completed/failed sessions' });
+    }
+
+    if (!parent.claude_session_id) {
+      return reply.code(400).send({ error: 'No Claude session ID available for resume' });
+    }
+
+    const body = resumeBody.parse(req.body);
+    const newSessionId = randomUUID();
+
+    dal.insertSession({
+      id: newSessionId,
+      machineId: parent.machine_id,
+      prompt: body.prompt,
+      cwd: parent.cwd,
+      flags: parent.flags,
+      status: 'queued',
+    });
+
+    // Update parent_session_id
+    dal.updateSession(newSessionId, { status: 'queued' });
+
+    const sent = agentHandler.sendToAgent(parent.machine_id, {
+      type: 'hub:session:resume',
+      sessionId: newSessionId,
+      prompt: body.prompt,
+      claudeSessionId: parent.claude_session_id,
+      cwd: parent.cwd,
+    });
+
+    if (!sent) {
+      dal.updateSessionStatus(newSessionId, 'failed');
+      return reply.code(500).send({ error: 'Failed to reach agent' });
+    }
+
+    return reply.code(201).send(dal.getSession(newSessionId));
+  });
+
   // Kill session
   app.delete<{ Params: { id: string } }>('/api/sessions/:id', async (req, reply) => {
     const session = dal.getSession(req.params.id);

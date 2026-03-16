@@ -10,6 +10,10 @@ import { AgentHandler } from './ws/agent-handler.js';
 import { machineRoutes } from './routes/machines.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { hookRoutes } from './routes/hooks.js';
+import { queueRoutes } from './routes/queues.js';
+import { approvalRoutes } from './routes/approvals.js';
+import { notificationRoutes } from './routes/notifications.js';
+import { templateRoutes } from './routes/templates.js';
 
 export async function createServer(config: HubConfig): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({
@@ -84,6 +88,10 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   await machineRoutes(app, dal);
   await sessionRoutes(app, dal, agentHandler);
   await hookRoutes(app, dal);
+  await queueRoutes(app, dal);
+  await approvalRoutes(app, db);
+  await notificationRoutes(app, db);
+  await templateRoutes(app, db);
 
   // SPA fallback
   app.setNotFoundHandler((req, reply) => {

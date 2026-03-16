@@ -87,3 +87,11 @@ export {
   approvalResolvedMsg,
   approvalCountMsg,
 } from './approvals.js';
+
+// Templates
+export {
+  type TemplateVariable,
+  type SessionTemplate,
+  templateVariableSchema,
+  sessionTemplateSchema,
+} from './templates.js';

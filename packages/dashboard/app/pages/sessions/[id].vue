@@ -13,7 +13,12 @@ const sessionsStore = useSessionsStore();
 const sessionId = computed(() => route.params.id as string);
 const session = computed(() => sessionsStore.sessionById.get(sessionId.value));
 const showKillConfirm = ref(false);
+const showResume = ref(false);
+const resumePrompt = ref('');
 const killing = ref(false);
+const resuming = ref(false);
+
+const isCompleted = computed(() => session.value?.status === 'completed' || session.value?.status === 'failed');
 
 onMounted(() => {
   if (!session.value) {
@@ -39,6 +44,26 @@ async function killSession(): Promise<void> {
     killing.value = false;
   }
 }
+
+async function resumeSession(): Promise<void> {
+  if (!resumePrompt.value) return;
+  resuming.value = true;
+  try {
+    const res = await fetch(`/api/sessions/${sessionId.value}/resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: resumePrompt.value }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { id: string };
+      router.push(`/sessions/${data.id}`);
+    }
+  } finally {
+    resuming.value = false;
+    showResume.value = false;
+    resumePrompt.value = '';
+  }
+}
 </script>
 
 <template>
@@ -50,6 +75,25 @@ async function killSession(): Promise<void> {
         {{ session.status }}
       </v-chip>
       <v-spacer />
+      <v-btn
+        v-if="isCompleted"
+        variant="tonal"
+        prepend-icon="mdi-replay"
+        class="mr-2"
+        :to="`/sessions/${sessionId}/replay`"
+      >
+        Replay
+      </v-btn>
+      <v-btn
+        v-if="isCompleted"
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-message-reply"
+        class="mr-2"
+        @click="showResume = true"
+      >
+        Resume
+      </v-btn>
       <v-btn
         v-if="isRunning"
         color="error"
@@ -104,6 +148,31 @@ async function killSession(): Promise<void> {
           <v-spacer />
           <v-btn variant="text" @click="showKillConfirm = false">Cancel</v-btn>
           <v-btn color="error" variant="flat" :loading="killing" @click="killSession">Kill</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Resume dialog -->
+    <v-dialog v-model="showResume" max-width="500">
+      <v-card>
+        <v-card-title>Resume Session</v-card-title>
+        <v-card-text>
+          <p class="text-body-2 text-medium-emphasis mb-3">
+            Continue this conversation with a follow-up prompt. A new session will be created linked to this one.
+          </p>
+          <v-textarea
+            v-model="resumePrompt"
+            label="Follow-up prompt"
+            placeholder="Now add tests for the fix..."
+            rows="3"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="showResume = false">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" :loading="resuming" :disabled="!resumePrompt" @click="resumeSession">
+            Resume
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
