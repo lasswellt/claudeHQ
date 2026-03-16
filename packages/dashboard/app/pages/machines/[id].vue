@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useMachinesStore } from '../../stores/machines';
 import { useSessionsStore } from '../../stores/sessions';
 import NewSessionModal from '../../components/session/NewSessionModal.vue';
+import MachineHealth from '../../components/machine/MachineHealth.vue';
 
 definePageMeta({ layout: 'default' });
 
@@ -84,6 +85,9 @@ const statusColor: Record<string, string> = {
           </v-row>
         </v-card-text>
       </v-card>
+
+      <!-- Health charts -->
+      <MachineHealth :machine-id="machineId" class="mb-6" />
 
       <!-- Active sessions -->
       <h2 class="text-h6 mb-3">Active Sessions ({{ activeSessions.length }})</h2>
