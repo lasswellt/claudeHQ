@@ -8,6 +8,8 @@ const theme = useTheme();
 
 const navItems = [
   { title: 'Overview', icon: 'mdi-view-dashboard', to: '/' },
+  { title: 'Jobs', icon: 'mdi-briefcase-outline', to: '/jobs' },
+  { title: 'Repos', icon: 'mdi-source-repository', to: '/repos' },
   { title: 'Sessions', icon: 'mdi-console', to: '/sessions' },
   { title: 'Machines', icon: 'mdi-server', to: '/machines' },
   { title: 'Queue', icon: 'mdi-playlist-play', to: '/queues' },

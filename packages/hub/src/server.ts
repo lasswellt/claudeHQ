@@ -15,6 +15,8 @@ import { approvalRoutes } from './routes/approvals.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { templateRoutes } from './routes/templates.js';
 import { healthHistoryRoutes } from './routes/health.js';
+import { repoRoutes } from './routes/repos.js';
+import { jobRoutes } from './routes/jobs.js';
 
 export async function createServer(config: HubConfig): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({
@@ -94,6 +96,8 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   await notificationRoutes(app, db);
   await templateRoutes(app, db);
   await healthHistoryRoutes(app, db);
+  await repoRoutes(app, db);
+  await jobRoutes(app, db, agentHandler);
 
   // SPA fallback
   app.setNotFoundHandler((req, reply) => {

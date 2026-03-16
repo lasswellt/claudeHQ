@@ -95,3 +95,19 @@ export {
   templateVariableSchema,
   sessionTemplateSchema,
 } from './templates.js';
+
+// Workforce
+export {
+  type RepoRecord,
+  type WorkspaceRecord,
+  type JobRecord,
+  repoRecordSchema,
+  workspaceStatusSchema,
+  workspaceRecordSchema,
+  jobStatusSchema,
+  jobRecordSchema,
+  hubWorkspaceProvisionMsg,
+  hubWorkspaceCleanupMsg,
+  agentWorkspaceReadyMsg,
+  agentWorkspaceErrorMsg,
+} from './workforce.js';

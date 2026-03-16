@@ -6,3 +6,5 @@ export { Recorder } from './recorder.js';
 export { getSystemHealth } from './health.js';
 export { TaskQueue } from './queue.js';
 export { Scrubber } from './scrubber.js';
+export * from './git-ops.js';
+export { provisionWorkspace, detectPackageManager, detectNodeVersion } from './workspace-provisioner.js';
