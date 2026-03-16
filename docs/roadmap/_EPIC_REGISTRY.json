@@ -57,6 +57,13 @@
       "description": "Docker execution backend via spawnClaudeCodeProcess, devcontainer support, cloud sandbox integration",
       "goal": "Run Claude Code in Docker containers for isolation and reproducibility.",
       "epics": ["EPIC-040", "EPIC-041"]
+    },
+    {
+      "id": "PHASE-9",
+      "name": "Container Orchestration with Sandboxed Autonomy",
+      "description": "Hub-managed Docker containers per job with shared repo volumes, git worktrees for branch isolation, restricted networking, and --dangerously-skip-permissions safe inside container sandbox",
+      "goal": "Fully autonomous Claude Code execution in sandboxed Docker containers — Hub spins up containers, mounts repo worktrees, streams output, tears down on completion.",
+      "epics": ["EPIC-042", "EPIC-043", "EPIC-044", "EPIC-045", "EPIC-046"]
     }
   ],
   "epics": [
@@ -951,6 +958,114 @@
         "SSH spawn: child_process.spawn('ssh', ['-o', 'BatchMode=yes', ...]) pattern",
         "Cloud sandbox integration points documented"
       ]
+    },
+    {
+      "id": "EPIC-042",
+      "phase": "PHASE-9",
+      "title": "Orchestration Agent with Dockerode",
+      "description": "Replace PtyPool-based execution with Docker container management via dockerode. ContainerPool class that creates, starts, attaches, stops, removes containers. Streams stdout/stderr back to Hub via WebSocket.",
+      "package": "agent",
+      "status": "planned",
+      "priority": "critical",
+      "dependencies": ["EPIC-004", "EPIC-040"],
+      "capabilities": ["container-orchestration"],
+      "stories": [],
+      "estimatedComplexity": "high",
+      "acceptanceCriteria": [
+        "dockerode creates containers from ghcr.io/anthropics/claude-code:latest",
+        "Container stdout/stderr streamed to Hub in real-time",
+        "Container lifecycle: create → start → attach → wait → remove",
+        "Config option: executionMode: 'docker' | 'pty'",
+        "Pre-pull image on agent startup",
+        "Container resource limits: memory, CPU, PIDs",
+        "Agent reports container stats (CPU/mem) to Hub"
+      ]
+    },
+    {
+      "id": "EPIC-043",
+      "phase": "PHASE-9",
+      "title": "Shared Repo Volumes with Git Worktrees",
+      "description": "Clone repos once to /data/repos/{repoId}/, create git worktrees per container/job for branch isolation. Agent manages all git operations (clone, fetch, worktree add/remove, commit, push). Containers mount only their worktree as /workspace.",
+      "package": "agent",
+      "status": "planned",
+      "priority": "critical",
+      "dependencies": ["EPIC-032", "EPIC-042"],
+      "capabilities": ["shared-volumes", "worktree-isolation"],
+      "stories": [],
+      "estimatedComplexity": "high",
+      "acceptanceCriteria": [
+        "Repos cloned to /data/repos/{repoId}/ with --filter=blob:none",
+        "Git worktree created per container at /data/repos/{repoId}/worktrees/{containerId}",
+        "Worktree mounted as /workspace:rw in container",
+        "UID mapping: containers run as --user 1000:1000 matching host",
+        "Post-exit: agent commits, pushes from worktree, then removes it",
+        "Concurrent containers on different branches don't conflict",
+        "Agent handles git fetch/gc, containers never touch .git directory"
+      ]
+    },
+    {
+      "id": "EPIC-044",
+      "phase": "PHASE-9",
+      "title": "Container Security Sandbox",
+      "description": "Hardened container spec that makes --dangerously-skip-permissions safe. Cap-drop ALL, no-new-privileges, read-only rootfs, restricted network, memory/CPU/PID limits. Restricted Docker network with HTTP allowlist proxy for api.anthropic.com only.",
+      "package": "agent",
+      "status": "planned",
+      "priority": "critical",
+      "dependencies": ["EPIC-042"],
+      "capabilities": ["container-sandbox", "safe-autonomy"],
+      "stories": [],
+      "estimatedComplexity": "medium",
+      "acceptanceCriteria": [
+        "--cap-drop ALL on every container",
+        "--security-opt no-new-privileges",
+        "--read-only rootfs with --tmpfs /tmp",
+        "Restricted Docker network (claude-restricted) with HTTP proxy",
+        "Proxy allowlists only api.anthropic.com (and optionally registry.npmjs.org)",
+        "--dangerously-skip-permissions passed to claude in container",
+        "Container cannot access Docker socket, host PID, or host network",
+        "--memory 2g --cpus 1.5 --pids-limit 256 defaults"
+      ]
+    },
+    {
+      "id": "EPIC-045",
+      "phase": "PHASE-9",
+      "title": "Hub Container Lifecycle Protocol",
+      "description": "New WebSocket message types for container management: create, start, stop, remove, stats. Hub tracks container state in jobs/sessions tables. Dashboard shows container status, resource usage, and live output.",
+      "package": "hub+shared+dashboard",
+      "status": "planned",
+      "priority": "high",
+      "dependencies": ["EPIC-042", "EPIC-008"],
+      "capabilities": ["container-protocol", "container-dashboard"],
+      "stories": [],
+      "estimatedComplexity": "medium",
+      "acceptanceCriteria": [
+        "Protocol messages: container:create, container:started, container:stdout, container:exited, container:stats",
+        "Hub tracks container status per job (containerId, status, resource usage)",
+        "Dashboard shows container state indicator on job/session views",
+        "Dashboard streams container stdout to xterm.js terminal",
+        "Container stats (CPU/mem/PIDs) visible on machine detail page"
+      ]
+    },
+    {
+      "id": "EPIC-046",
+      "phase": "PHASE-9",
+      "title": "Container Setup Pipeline (deps install, pre-flight)",
+      "description": "Before launching Claude Code, run setup commands in a temporary container (pnpm install, etc.). Cache node_modules via Docker volumes. Run pre-flight checks. Only launch Claude after workspace is fully prepared.",
+      "package": "agent",
+      "status": "planned",
+      "priority": "high",
+      "dependencies": ["EPIC-043", "EPIC-044"],
+      "capabilities": ["container-setup-pipeline"],
+      "stories": [],
+      "estimatedComplexity": "medium",
+      "acceptanceCriteria": [
+        "Setup container runs repo's setup_commands before Claude container",
+        "node_modules cached in Docker volume per repo (pnpm store)",
+        "Pre-flight commands (typecheck, test) run and report pass/fail",
+        "Claude container only launched after setup succeeds",
+        "Setup failures reported to Hub with error details",
+        "Dependency install time visible in job timeline"
+      ]
     }
   ],
   "capabilities": {
@@ -980,6 +1095,11 @@
     "github-prs": { "description": "Auto-create and track PRs", "epics": ["EPIC-034"] },
     "auto-scheduling": { "description": "Automatic machine selection", "epics": ["EPIC-036"] },
     "batch-jobs": { "description": "Multi-repo batch execution", "epics": ["EPIC-037"] },
-    "docker-execution": { "description": "Run Claude Code in Docker containers", "epics": ["EPIC-040"] }
+    "docker-execution": { "description": "Run Claude Code in Docker containers", "epics": ["EPIC-040"] },
+    "container-orchestration": { "description": "Hub-managed Docker container lifecycle via dockerode", "epics": ["EPIC-042"] },
+    "shared-volumes": { "description": "Shared repo volumes with git worktree isolation", "epics": ["EPIC-043"] },
+    "container-sandbox": { "description": "Hardened container security for safe --dangerously-skip-permissions", "epics": ["EPIC-044"] },
+    "container-protocol": { "description": "WebSocket protocol for container management", "epics": ["EPIC-045"] },
+    "container-setup-pipeline": { "description": "Automated dependency install and pre-flight in containers", "epics": ["EPIC-046"] }
   }
 }
