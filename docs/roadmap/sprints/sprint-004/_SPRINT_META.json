@@ -1,0 +1,27 @@
+{
+  "sprintId": "sprint-004",
+  "number": 4,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-016", "EPIC-017"],
+  "storyCount": 10,
+  "totalPoints": 38,
+  "breakdown": {
+    "shared": { "stories": 1, "points": 3 },
+    "hub": { "stories": 4, "points": 16 },
+    "agent": { "stories": 1, "points": 3 },
+    "dashboard": { "stories": 4, "points": 16 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "004-001", "title": "Shared approval types + protocol messages", "epic": "EPIC-016", "pkg": "shared", "points": 3 },
+    { "id": "004-002", "title": "Hub approval tables + policy engine", "epic": "EPIC-016", "pkg": "hub", "points": 5 },
+    { "id": "004-003", "title": "Hub approval REST API + hook integration", "epic": "EPIC-016", "pkg": "hub", "points": 5 },
+    { "id": "004-004", "title": "Agent approval bridge (canUseTool + hook)", "epic": "EPIC-016", "pkg": "agent", "points": 3 },
+    { "id": "004-005", "title": "Dashboard approval queue page", "epic": "EPIC-016", "pkg": "dashboard", "points": 5 },
+    { "id": "004-006", "title": "Dashboard inline approval banner + AskUser reply", "epic": "EPIC-016", "pkg": "dashboard", "points": 3 },
+    { "id": "004-007", "title": "Hub notification dispatch engine", "epic": "EPIC-017", "pkg": "hub", "points": 3 },
+    { "id": "004-008", "title": "Hub notification config API + webhook sender", "epic": "EPIC-017", "pkg": "hub", "points": 3 },
+    { "id": "004-009", "title": "Dashboard notification toast + feed", "epic": "EPIC-017", "pkg": "dashboard", "points": 5 },
+    { "id": "004-010", "title": "Dashboard approval policy settings page", "epic": "EPIC-016", "pkg": "dashboard", "points": 3 }
+  ]
+}

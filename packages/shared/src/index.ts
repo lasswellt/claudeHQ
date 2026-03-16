@@ -61,3 +61,29 @@ export {
   hubConfigSchema,
   loadConfig,
 } from './config.js';
+
+// Approvals
+export {
+  type ApprovalRequestType,
+  type ApprovalSource,
+  type RiskLevel,
+  type ApprovalStatus,
+  type TimeoutAction,
+  type ApprovalRequest,
+  type ApprovalResponse,
+  type ApprovalPolicyRule,
+  approvalRequestTypeSchema,
+  approvalSourceSchema,
+  riskLevelSchema,
+  approvalStatusSchema,
+  timeoutActionSchema,
+  approvalRequestSchema,
+  approvalResponseSchema,
+  approvalPolicyRuleSchema,
+  policyRuleActionSchema,
+  agentApprovalRequestMsg,
+  hubApprovalDecisionMsg,
+  approvalRequestedMsg,
+  approvalResolvedMsg,
+  approvalCountMsg,
+} from './approvals.js';

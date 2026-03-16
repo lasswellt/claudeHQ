@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useTheme } from 'vuetify';
+import NotificationFeed from '../components/notifications/NotificationFeed.vue';
 
 const drawer = ref(true);
 const theme = useTheme();
@@ -10,6 +11,8 @@ const navItems = [
   { title: 'Sessions', icon: 'mdi-console', to: '/sessions' },
   { title: 'Machines', icon: 'mdi-server', to: '/machines' },
   { title: 'Queue', icon: 'mdi-playlist-play', to: '/queues' },
+  { title: 'Approvals', icon: 'mdi-shield-check', to: '/approvals' },
+  { title: 'Settings', icon: 'mdi-cog', to: '/settings/approval-policies' },
 ];
 
 function toggleTheme(): void {
@@ -26,6 +29,7 @@ function toggleTheme(): void {
         <span class="font-weight-light ml-1">HQ</span>
       </v-app-bar-title>
       <v-spacer />
+      <NotificationFeed />
       <v-btn
         :icon="theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
         variant="text"
