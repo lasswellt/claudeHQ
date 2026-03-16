@@ -15,6 +15,7 @@ export interface WsClientOptions {
   maxSessions: number;
   os: string;
   heartbeatIntervalMs?: number;
+  agentToken?: string;
   onMessage: (msg: HubToAgentMessage) => void;
 }
 
@@ -40,7 +41,12 @@ export class WsClient extends EventEmitter {
     if (this.destroyed) return;
     this.setState('connecting');
 
-    this.ws = new WebSocket(this.options.url);
+    let connectUrl = this.options.url;
+    if (this.options.agentToken) {
+      const sep = connectUrl.includes('?') ? '&' : '?';
+      connectUrl = `${connectUrl}${sep}token=${encodeURIComponent(this.options.agentToken)}`;
+    }
+    this.ws = new WebSocket(connectUrl);
 
     this.ws.on('open', () => {
       this.reconnectAttempts = 0;

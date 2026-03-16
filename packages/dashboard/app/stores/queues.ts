@@ -7,17 +7,16 @@ export const useQueuesStore = defineStore('queues', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  async function fetchQueues(machineId?: string): Promise<void> {
+  // ME-20: machineId is required — queues are always per-machine. The optional
+  // variant silently discarded fetched data when machineId was absent.
+  async function fetchQueues(machineId: string): Promise<void> {
     loading.value = true;
     error.value = null;
     try {
-      const url = machineId ? `/api/queues/${machineId}` : '/api/queues';
-      const res = await fetch(url);
+      const res = await fetch(`/api/queues/${machineId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as QueueTask[];
-      if (machineId) {
-        queuesByMachine.value.set(machineId, data);
-      }
+      queuesByMachine.value.set(machineId, data);
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch queues';
     } finally {

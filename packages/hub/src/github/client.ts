@@ -81,6 +81,14 @@ export class GitHubClient {
     };
   }
 
+  getSafeConfig(): Omit<GitHubConfig, 'privateKey' | 'patToken'> | null {
+    const config = this.getConfig();
+    if (!config) return null;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { privateKey, patToken, ...safe } = config;
+    return safe;
+  }
+
   saveConfig(config: GitHubConfig & { slug?: string; clientId?: string; clientSecret?: string; webhookSecret?: string }): void {
     this.upsertConfigStmt.run(
       config.appId ?? null, config.privateKey ?? null,

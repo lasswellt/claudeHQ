@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 
 interface ReplayChunk {
   ts: number;
@@ -80,22 +80,37 @@ export function useReplay() {
     }
   }
 
+  // ME-19: batch all chunks that share the same timestamp (delta = 0) into a
+  // single write call instead of scheduling each as a separate 0 ms timer.
+  // This prevents an unbounded synchronous-feeling recursive setTimeout chain
+  // on burst-heavy recordings.
   function scheduleNext(): void {
     if (!playing.value || chunkIndex >= chunks.value.length) {
       playing.value = false;
       return;
     }
 
-    const chunk = chunks.value[chunkIndex]!;
-    const prevTs = chunkIndex > 0 ? chunks.value[chunkIndex - 1]!.ts : 0;
-    const delay = Math.max(0, (chunk.ts - prevTs) / speed.value);
+    const startTs = chunks.value[chunkIndex]!.ts;
+    let batch = '';
 
-    playTimer = setTimeout(() => {
-      writeCallback?.(chunk.data);
+    while (chunkIndex < chunks.value.length) {
+      const chunk = chunks.value[chunkIndex]!;
+      const delta = chunk.ts - startTs;
+      if (delta > 0) {
+        // Schedule the next batch after the relative delay
+        playTimer = setTimeout(scheduleNext, delta / speed.value);
+        break;
+      }
+      batch += chunk.data;
       currentTime.value = chunk.ts;
       chunkIndex++;
-      scheduleNext();
-    }, delay);
+    }
+
+    if (batch) writeCallback?.(batch);
+
+    if (chunkIndex >= chunks.value.length) {
+      playing.value = false;
+    }
   }
 
   function dispose(): void {
@@ -105,6 +120,10 @@ export function useReplay() {
   }
 
   const progress = computed(() => (duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0));
+
+  // ME-18: dispose the replay engine when the owning component unmounts so
+  // the setTimeout chain does not outlive the component.
+  onUnmounted(() => dispose());
 
   return {
     chunks,

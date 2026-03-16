@@ -1,6 +1,7 @@
 import * as pty from 'node-pty';
 import type { OutputChunk } from '@chq/shared';
 import { EventEmitter } from 'node:events';
+import { Scrubber } from './scrubber.js';
 
 const MAX_INPUT_LENGTH = 4096;
 
@@ -33,6 +34,8 @@ export interface PtySessionEvents {
   stateChange: (state: SessionState) => void;
   exit: (exitCode: number, signal?: number) => void;
 }
+
+const scrubber = new Scrubber();
 
 export class PtySession extends EventEmitter {
   readonly id: string;
@@ -85,7 +88,7 @@ export class PtySession extends EventEmitter {
     this.ptyProcess.onData((data: string) => {
       const chunk: OutputChunk = {
         ts: Date.now() - this.startTime,
-        data,
+        data: scrubber.scrub(data),
       };
       this.outputBuffer.push(chunk);
 

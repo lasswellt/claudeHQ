@@ -34,12 +34,15 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   function handleWsMessage(msg: HubToDashboardMessage): void {
-    if (msg.type === 'session:updated' && msg.session) {
-      const idx = sessions.value.findIndex((s) => s.id === msg.session.id);
+    // ME-23: extract into a local const so TypeScript narrows correctly even
+    // if the compiler cannot prove msg.session is stable across the block.
+    if (msg.type === 'session:updated') {
+      const session = msg.session;
+      const idx = sessions.value.findIndex((s) => s.id === session.id);
       if (idx >= 0) {
-        sessions.value[idx] = msg.session;
+        sessions.value[idx] = session;
       } else {
-        sessions.value.unshift(msg.session);
+        sessions.value.unshift(session);
       }
     }
   }

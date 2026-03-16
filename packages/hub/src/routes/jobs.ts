@@ -80,24 +80,28 @@ export async function jobRoutes(
     }
 
     const id = randomUUID();
-    insertJobStmt.run(
-      id, body.repoId, machineId, body.title, body.prompt,
-      body.branch ?? null, body.timeoutSeconds ?? null,
-      body.maxCostUsd ?? null, body.autoPr ? 1 : 0,
-      body.autoCleanup ? 1 : 0,
-      body.tags ? JSON.stringify(body.tags) : null,
-    );
-
-    // Start the job orchestration: provision workspace → prepare → spawn session
-    updateJobStatusStmt.run('provisioning', id);
-
-    // Create workspace
     const workspaceId = randomUUID();
-    insertWorkspaceStmt.run(workspaceId, body.repoId, machineId, `/workspaces/${id}`, body.branch ?? 'main', id);
 
-    updateJobWorkspaceStmt.run(workspaceId, id);
+    // Wrap all DB mutations in a transaction — agent command sent only after commit
+    db.transaction(() => {
+      insertJobStmt.run(
+        id, body.repoId, machineId, body.title, body.prompt,
+        body.branch ?? null, body.timeoutSeconds ?? null,
+        body.maxCostUsd ?? null, body.autoPr ? 1 : 0,
+        body.autoCleanup ? 1 : 0,
+        body.tags ? JSON.stringify(body.tags) : null,
+      );
 
-    // Send workspace provision command to agent
+      // Start the job orchestration: provision workspace → prepare → spawn session
+      updateJobStatusStmt.run('provisioning', id);
+
+      // Create workspace
+      insertWorkspaceStmt.run(workspaceId, body.repoId, machineId, `/workspaces/${id}`, body.branch ?? 'main', id);
+
+      updateJobWorkspaceStmt.run(workspaceId, id);
+    })();
+
+    // Send workspace provision command to agent after transaction commits
     agentHandler.sendToAgent(machineId, {
       type: 'hub:session:start' as const,
       sessionId: id,

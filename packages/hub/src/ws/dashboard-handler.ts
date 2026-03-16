@@ -98,11 +98,16 @@ export class DashboardHandler {
   }
 
   private sendInitialState(client: ConnectedDashboard, resource: string, id?: string): void {
+    if (client.socket.readyState !== 1) return;
     switch (resource) {
       case 'session':
         if (id) {
           const session = this.dal.getSession(id);
           if (session) {
+            client.socket.send(JSON.stringify({ type: 'session:updated', session }));
+          }
+        } else {
+          for (const session of this.dal.listSessions({})) {
             client.socket.send(JSON.stringify({ type: 'session:updated', session }));
           }
         }

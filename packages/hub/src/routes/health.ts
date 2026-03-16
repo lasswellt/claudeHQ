@@ -1,6 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import type Database from 'better-sqlite3';
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    recordHealthData: (
+      machineId: string,
+      cpuPercent: number,
+      memPercent: number,
+      diskPercent: number | null,
+      activeSessions: number,
+    ) => void;
+  }
+}
+
 export async function healthHistoryRoutes(app: FastifyInstance, db: Database.Database): Promise<void> {
   // Record health data (called internally from heartbeat handler)
   const insertStmt = db.prepare(`
@@ -23,15 +35,13 @@ export async function healthHistoryRoutes(app: FastifyInstance, db: Database.Dat
   });
 
   // Expose the insert function for the agent handler to use
-  Object.assign(app, {
-    recordHealthData(
-      machineId: string,
-      cpuPercent: number,
-      memPercent: number,
-      diskPercent: number | null,
-      activeSessions: number,
-    ): void {
-      insertStmt.run(machineId, cpuPercent, memPercent, diskPercent, activeSessions);
-    },
+  app.decorate('recordHealthData', function(
+    machineId: string,
+    cpuPercent: number,
+    memPercent: number,
+    diskPercent: number | null,
+    activeSessions: number,
+  ): void {
+    insertStmt.run(machineId, cpuPercent, memPercent, diskPercent, activeSessions);
   });
 }

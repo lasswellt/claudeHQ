@@ -51,11 +51,17 @@ export const useApprovalsStore = defineStore('approvals', () => {
   }
 
   async function bulkRespond(approvalIds: string[], decision: 'approve' | 'deny'): Promise<void> {
-    await fetch('/api/approvals/bulk/respond', {
+    // ME-21: check response status so failed bulk operations are not silently
+    // treated as successful.
+    const res = await fetch('/api/approvals/bulk/respond', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approvalIds, decision }),
     });
+    if (!res.ok) {
+      error.value = `Bulk respond failed: HTTP ${res.status}`;
+      return;
+    }
     await fetchApprovals();
   }
 

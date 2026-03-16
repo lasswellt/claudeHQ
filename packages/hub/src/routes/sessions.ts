@@ -21,13 +21,19 @@ export async function sessionRoutes(
   dal: DAL,
   agentHandler: AgentHandler,
 ): Promise<void> {
+  const sessionStatusSchema = z.enum(['queued', 'running', 'completed', 'failed']).optional();
+
   // List sessions
   app.get<{
     Querystring: { machine?: string; status?: string; limit?: string; offset?: string };
-  }>('/api/sessions', async (req) => {
+  }>('/api/sessions', async (req, reply) => {
+    const statusResult = sessionStatusSchema.safeParse(req.query.status);
+    if (!statusResult.success) {
+      return reply.code(400).send({ error: 'Invalid status value' });
+    }
     return dal.listSessions({
       machineId: req.query.machine,
-      status: req.query.status,
+      status: statusResult.data,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
       offset: req.query.offset ? parseInt(req.query.offset, 10) : undefined,
     });

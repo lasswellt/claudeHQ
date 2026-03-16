@@ -58,6 +58,11 @@ export class AgentHandler {
             break;
           case 'agent:queue:updated':
             this.app.log.debug({ machineId: msg.machineId }, 'Queue update received');
+            this.broadcastToDashboard({
+              type: 'queue:updated',
+              machineId: msg.machineId,
+              queue: msg.queue,
+            });
             break;
         }
       } catch (err) {
@@ -72,10 +77,10 @@ export class AgentHandler {
         const timer = setTimeout(() => {
           this.dal.updateMachineStatus(machineId!, 'offline', Math.floor(Date.now() / 1000));
           this.offlineTimers.delete(machineId!);
-          this.broadcastToDashboard({
-            type: 'machine:updated',
-            machine: this.dal.getMachine(machineId!),
-          });
+          const offlineMachine = this.dal.getMachine(machineId!);
+          if (offlineMachine) {
+            this.broadcastToDashboard({ type: 'machine:updated', machine: offlineMachine });
+          }
           this.app.log.info({ machineId }, 'Agent marked offline');
         }, 60000);
         this.offlineTimers.set(machineId, timer);
@@ -120,10 +125,10 @@ export class AgentHandler {
       meta: JSON.stringify({ version: msg.version, os: msg.os, arch: process.arch }),
     });
 
-    this.broadcastToDashboard({
-      type: 'machine:updated',
-      machine: this.dal.getMachine(msg.machineId),
-    });
+    const registeredMachine = this.dal.getMachine(msg.machineId);
+    if (registeredMachine) {
+      this.broadcastToDashboard({ type: 'machine:updated', machine: registeredMachine });
+    }
 
     this.app.log.info({ machineId: msg.machineId, version: msg.version }, 'Agent registered');
   }

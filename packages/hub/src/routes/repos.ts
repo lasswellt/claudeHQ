@@ -40,7 +40,7 @@ export async function repoRoutes(app: FastifyInstance, db: Database.Database): P
   });
 
   const createBody = z.object({
-    url: z.string().min(1),
+    url: z.string().url(),
     name: z.string().min(1),
     owner: z.string().optional(),
     default_branch: z.string().default('main'),

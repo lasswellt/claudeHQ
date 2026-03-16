@@ -26,7 +26,7 @@ export function ensureRepoCloned(repoUrl: string, repoId: string, basePath: stri
   } else {
     log.info({ repoId, repoUrl, repoDir }, 'Cloning repo');
     if (!existsSync(basePath)) mkdirSync(basePath, { recursive: true });
-    execFileSync('git', ['clone', '--filter=blob:none', repoUrl, repoDir], execOpts);
+    execFileSync('git', ['clone', '--filter=blob:none', '--', repoUrl, repoDir], execOpts);
   }
 
   return repoDir;

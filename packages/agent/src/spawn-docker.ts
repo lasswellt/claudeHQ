@@ -1,4 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { writeFileSync, unlinkSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pino from 'pino';
 
 const log = pino({ name: 'docker-spawn' });
@@ -8,6 +11,21 @@ export interface DockerSpawnOptions {
   image?: string;
   volumeMounts?: Array<{ host: string; container: string; readonly?: boolean }>;
   resourceLimits?: { cpus?: string; memory?: string };
+}
+
+/**
+ * Writes env vars to a temp file (mode 0o600) and returns the path.
+ * The caller is responsible for deleting the file after the process starts.
+ */
+function writeEnvFile(env: Record<string, string | undefined>): string {
+  const dir = mkdtempSync(join(tmpdir(), 'chq-'));
+  const envFile = join(dir, '.env');
+  const content = Object.entries(env)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k}=${v as string}`)
+    .join('\n');
+  writeFileSync(envFile, content, { mode: 0o600 });
+  return envFile;
 }
 
 /**
@@ -29,14 +47,14 @@ export function createDockerExecSpawn(opts: DockerSpawnOptions) {
   }): ChildProcess => {
     const containerCwd = spawnOpts.cwd ?? '/workspace';
 
+    // Write env vars to a temp file to avoid exposing secrets in ps/cmdline
+    const envFile = writeEnvFile(spawnOpts.env);
+
     const dockerArgs = [
       'exec',
       '-i', // Interactive stdin — NO -t (TTY corrupts JSON-lines)
       '-w', containerCwd,
-      // Inject environment variables
-      ...Object.entries(spawnOpts.env)
-        .filter(([, v]) => v !== undefined)
-        .flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+      '--env-file', envFile,
       opts.containerName,
       'claude', // Use container's claude binary, not host path
       ...spawnOpts.args,
@@ -46,6 +64,11 @@ export function createDockerExecSpawn(opts: DockerSpawnOptions) {
 
     const proc = spawn('docker', dockerArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // Clean up env file after process starts (file descriptors are already open)
+    proc.once('spawn', () => {
+      try { unlinkSync(envFile); } catch { /* ignore */ }
     });
 
     // Forward abort signal
@@ -71,6 +94,9 @@ export function createDockerRunSpawn(opts: DockerSpawnOptions) {
   }): ChildProcess => {
     const containerCwd = '/workspace';
 
+    // Write env vars to a temp file to avoid exposing secrets in ps/cmdline
+    const envFile = writeEnvFile(spawnOpts.env);
+
     const dockerArgs = [
       'run',
       '--rm',
@@ -82,9 +108,7 @@ export function createDockerRunSpawn(opts: DockerSpawnOptions) {
         '-v',
         `${m.host}:${m.container}${m.readonly ? ':ro' : ''}`,
       ]),
-      ...Object.entries(spawnOpts.env)
-        .filter(([, v]) => v !== undefined)
-        .flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+      '--env-file', envFile,
       opts.image ?? 'ghcr.io/anthropics/claude-code:latest',
       'claude',
       ...spawnOpts.args,
@@ -94,6 +118,11 @@ export function createDockerRunSpawn(opts: DockerSpawnOptions) {
 
     const proc = spawn('docker', dockerArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // Clean up env file after process starts (file descriptors are already open)
+    proc.once('spawn', () => {
+      try { unlinkSync(envFile); } catch { /* ignore */ }
     });
 
     spawnOpts.signal.addEventListener('abort', () => {

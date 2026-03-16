@@ -151,10 +151,15 @@ export function useWebSocket() {
     send({ type: 'unsubscribe', resource, id });
   }
 
-  function onMessage(type: string, handler: MessageHandler): () => void {
+  // ME-22: generic overload so callers receive the narrowed message type
+  // automatically without manual type guards.
+  function onMessage<T extends HubToDashboardMessage['type']>(
+    type: T,
+    handler: (msg: Extract<HubToDashboardMessage, { type: T }>) => void,
+  ): () => void {
     if (!handlers.has(type)) handlers.set(type, new Set());
-    handlers.get(type)!.add(handler);
-    return () => handlers.get(type)?.delete(handler);
+    handlers.get(type)!.add(handler as MessageHandler);
+    return () => handlers.get(type)?.delete(handler as MessageHandler);
   }
 
   function onAnyMessage(handler: MessageHandler): () => void {

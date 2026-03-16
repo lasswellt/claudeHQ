@@ -71,8 +71,19 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
     connectedAgents: agentHandler.getConnectedAgentIds().length,
   }));
 
-  // Agent WebSocket
-  app.get('/ws/agent', { websocket: true }, (socket) => {
+  // Agent WebSocket — token auth when CHQ_AGENT_TOKEN is configured
+  app.get('/ws/agent', { websocket: true }, (socket, req) => {
+    const expectedToken = process.env.CHQ_AGENT_TOKEN;
+    if (expectedToken) {
+      const provided =
+        (req.query as Record<string, string | undefined>).token ??
+        req.headers['x-agent-token'];
+      if (provided !== expectedToken) {
+        app.log.warn('Agent WebSocket rejected: invalid token');
+        socket.close(4401, 'Unauthorized');
+        return;
+      }
+    }
     agentHandler.handleConnection(socket);
   });
 

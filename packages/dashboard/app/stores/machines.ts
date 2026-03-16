@@ -34,12 +34,15 @@ export const useMachinesStore = defineStore('machines', () => {
   }
 
   function handleWsMessage(msg: HubToDashboardMessage): void {
-    if (msg.type === 'machine:updated' && msg.machine) {
-      const idx = machines.value.findIndex((m) => m.id === msg.machine.id);
+    // ME-24: extract into a local const so TypeScript narrows correctly even
+    // if the compiler cannot prove msg.machine is stable across the block.
+    if (msg.type === 'machine:updated') {
+      const machine = msg.machine;
+      const idx = machines.value.findIndex((m) => m.id === machine.id);
       if (idx >= 0) {
-        machines.value[idx] = msg.machine;
+        machines.value[idx] = machine;
       } else {
-        machines.value.push(msg.machine);
+        machines.value.push(machine);
       }
     }
   }

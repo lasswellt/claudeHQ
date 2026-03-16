@@ -38,7 +38,7 @@ export async function githubRoutes(
 
   // Get GitHub config status (no secrets exposed)
   app.get('/api/github/status', async () => {
-    const config = githubClient.getConfig();
+    const config = githubClient.getSafeConfig();
     return {
       configured: githubClient.isConfigured,
       authMethod: config?.authMethod ?? 'none',
