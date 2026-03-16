@@ -1,0 +1,33 @@
+{
+  "sprintId": "sprint-002",
+  "number": 2,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-004", "EPIC-005", "EPIC-007", "EPIC-008", "EPIC-009", "EPIC-010"],
+  "storyCount": 10,
+  "totalPoints": 39,
+  "breakdown": {
+    "agent": { "stories": 5, "points": 18 },
+    "hub": { "stories": 4, "points": 18 },
+    "integration": { "stories": 1, "points": 3 }
+  },
+  "dependencies": {
+    "criticalPath": ["002-001", "002-002", "002-006", "002-007", "002-010"],
+    "parallelTracks": {
+      "agentTrack": ["002-001", "002-002", "002-003", "002-004", "002-009"],
+      "hubTrack": ["002-005", "002-006", "002-007", "002-008"]
+    }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "002-001", "title": "Agent WebSocket client with reconnection", "epic": "EPIC-004", "pkg": "agent", "points": 5 },
+    { "id": "002-002", "title": "Agent daemon process manager", "epic": "EPIC-004", "pkg": "agent", "points": 5 },
+    { "id": "002-003", "title": "Agent CLI commands", "epic": "EPIC-004", "pkg": "agent", "points": 3 },
+    { "id": "002-004", "title": "Agent recording writer and uploader", "epic": "EPIC-005", "pkg": "agent", "points": 3 },
+    { "id": "002-005", "title": "Hub SQLite data access layer", "epic": "EPIC-007", "pkg": "hub", "points": 5 },
+    { "id": "002-006", "title": "Hub agent WebSocket handler", "epic": "EPIC-008", "pkg": "hub", "points": 5 },
+    { "id": "002-007", "title": "Hub REST API — sessions and machines", "epic": "EPIC-009", "pkg": "hub", "points": 5 },
+    { "id": "002-008", "title": "Hub hook receiver routes", "epic": "EPIC-010", "pkg": "hub", "points": 3 },
+    { "id": "002-009", "title": "Agent health reporting", "epic": "EPIC-004", "pkg": "agent", "points": 2 },
+    { "id": "002-010", "title": "Integration test — agent to Hub round trip", "epic": "EPIC-009", "pkg": "hub+agent", "points": 3 }
+  ]
+}

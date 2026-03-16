@@ -6,15 +6,15 @@
   },
   "lastExecution": {
     "skill": "sprint-plan",
-    "date": "2026-03-15",
+    "date": "2026-03-16",
     "status": "complete"
   },
   "lastSprint": {
-    "number": 1,
-    "id": "sprint-001",
-    "date": "2026-03-15",
-    "storyCount": 15,
-    "epics": ["EPIC-001", "EPIC-002", "EPIC-003", "EPIC-006"]
+    "number": 2,
+    "id": "sprint-002",
+    "date": "2026-03-16",
+    "storyCount": 10,
+    "epics": ["EPIC-004", "EPIC-005", "EPIC-007", "EPIC-008", "EPIC-009", "EPIC-010"]
   },
   "incompletes": []
 }
