@@ -83,9 +83,8 @@ export async function jobRoutes(
     // Create workspace
     const workspaceId = randomUUID();
     const repoUrl = repo.url as string;
-    const setupCommands = repo.setup_commands
-      ? (JSON.parse(repo.setup_commands as string) as string[])
-      : [];
+    let setupCommands: string[] = [];
+    try { setupCommands = repo.setup_commands ? (JSON.parse(repo.setup_commands as string) as string[]) : []; } catch { /* malformed JSON */ }
 
     db.prepare(`
       INSERT INTO workspaces (id, repo_id, machine_id, path, branch, status, job_id)
@@ -108,11 +107,29 @@ export async function jobRoutes(
     return reply.code(201).send(getJobStmt.get(id));
   });
 
-  // Cancel job
+  // Cancel job — also signals agent to stop running container/session
   app.post<{ Params: { id: string } }>('/api/jobs/:id/cancel', async (req, reply) => {
-    const job = getJobStmt.get(req.params.id);
+    const job = getJobStmt.get(req.params.id) as Record<string, unknown> | undefined;
     if (!job) return reply.code(404).send({ error: 'Job not found' });
+
     updateJobStatusStmt.run('cancelled', req.params.id);
+
+    // Signal agent to kill any running session for this job
+    const machineId = job.machine_id as string | null;
+    if (machineId) {
+      // Find running sessions for this job
+      const sessions = db.prepare(
+        "SELECT id FROM sessions WHERE job_id = ? AND status = 'running'",
+      ).all(req.params.id) as Array<{ id: string }>;
+
+      for (const session of sessions) {
+        agentHandler.sendToAgent(machineId, {
+          type: 'hub:session:kill',
+          sessionId: session.id,
+        });
+      }
+    }
+
     return { cancelled: true };
   });
 

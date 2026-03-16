@@ -23,8 +23,17 @@ export interface ContainerSecurityConfig {
  * - Restricted network (only api.anthropic.com via proxy)
  * - Non-root user matching host UID
  */
+// Fields that CANNOT be overridden — they are critical for sandbox safety
+const IMMUTABLE_FIELDS: (keyof ContainerSecurityConfig)[] = [
+  'securityOpt',  // must include no-new-privileges
+  'capDrop',       // must drop ALL
+];
+
+// Values that are NEVER allowed
+const FORBIDDEN_NETWORK_MODES = ['host', 'container'];
+
 export function getDefaultSecurityConfig(overrides?: Partial<ContainerSecurityConfig>): ContainerSecurityConfig {
-  return {
+  const config: ContainerSecurityConfig = {
     memoryBytes: 2 * 1024 * 1024 * 1024,   // 2GB
     cpuQuota: 150000,                         // 1.5 cores
     cpuPeriod: 100000,
@@ -35,8 +44,29 @@ export function getDefaultSecurityConfig(overrides?: Partial<ContainerSecurityCo
     readonlyRootfs: true,
     tmpfs: { '/tmp': 'rw,noexec,nosuid,size=512m' },
     user: '1000:1000',                        // match host UID
-    ...overrides,
   };
+
+  if (overrides) {
+    // Validate: reject overrides that disable critical security
+    for (const field of IMMUTABLE_FIELDS) {
+      if (field in overrides) {
+        throw new Error(`Cannot override security field "${field}" — it is immutable for sandbox safety`);
+      }
+    }
+
+    if (overrides.networkMode && FORBIDDEN_NETWORK_MODES.includes(overrides.networkMode)) {
+      throw new Error(`Network mode "${overrides.networkMode}" is forbidden — use "claude-restricted" or "none"`);
+    }
+
+    // Apply safe overrides (resource limits, user, tmpfs, network mode, readonlyRootfs)
+    Object.assign(config, overrides);
+
+    // Re-enforce immutable values after merge
+    config.securityOpt = ['no-new-privileges'];
+    config.capDrop = ['ALL'];
+  }
+
+  return config;
 }
 
 /**

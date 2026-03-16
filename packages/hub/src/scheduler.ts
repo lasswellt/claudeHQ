@@ -23,7 +23,8 @@ export function selectMachine(
   for (const m of machines) {
     const machineId = m.id as string;
     const maxSessions = m.max_sessions as number;
-    const capabilities = m.capabilities ? (JSON.parse(m.capabilities as string) as string[]) : [];
+    let capabilities: string[] = [];
+    try { capabilities = m.capabilities ? (JSON.parse(m.capabilities as string) as string[]) : []; } catch { /* malformed JSON */ }
 
     // Check capability requirements
     if (requirements?.length) {
@@ -38,7 +39,8 @@ export function selectMachine(
     if (freeSlots <= 0) continue;
 
     // Get latest health data
-    const meta = m.meta ? (JSON.parse(m.meta as string) as Record<string, unknown>) : {};
+    let meta: Record<string, unknown> = {};
+    try { meta = m.meta ? (JSON.parse(m.meta as string) as Record<string, unknown>) : {}; } catch { /* malformed JSON */ }
     const cpuPercent = (meta.cpuPercent as number) ?? 50;
     const memPercent = (meta.memPercent as number) ?? 50;
 

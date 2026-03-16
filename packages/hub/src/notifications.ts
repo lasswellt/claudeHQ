@@ -25,10 +25,12 @@ export class NotificationEngine {
 
     if (!config || !(config.enabled as number)) return;
 
-    const enabledEvents = JSON.parse((config.events as string) || '[]') as string[];
+    let enabledEvents: string[] = [];
+    try { enabledEvents = JSON.parse((config.events as string) || '[]') as string[]; } catch { return; }
     if (!enabledEvents.includes(event.type)) return;
 
-    const webhooks = config.webhooks ? (JSON.parse(config.webhooks as string) as WebhookConfig[]) : [];
+    let webhooks: WebhookConfig[] = [];
+    try { webhooks = config.webhooks ? (JSON.parse(config.webhooks as string) as WebhookConfig[]) : []; } catch { return; }
 
     for (const webhook of webhooks) {
       // Check if this webhook cares about this event type
