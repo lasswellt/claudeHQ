@@ -6,4 +6,12 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
+  external: [
+    'node-pty',
+    'ws',
+    'commander',
+    'pino',
+    'zod',
+    '@chq/shared',
+  ],
 });

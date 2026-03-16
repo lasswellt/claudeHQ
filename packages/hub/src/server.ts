@@ -5,6 +5,11 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { HubConfig } from '@chq/shared';
 import { initDatabase } from './db.js';
+import { createDAL } from './dal.js';
+import { AgentHandler } from './ws/agent-handler.js';
+import { machineRoutes } from './routes/machines.js';
+import { sessionRoutes } from './routes/sessions.js';
+import { hookRoutes } from './routes/hooks.js';
 
 export async function createServer(config: HubConfig): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({
@@ -18,14 +23,31 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   if (!existsSync(dbDir)) mkdirSync(dbDir, { recursive: true });
   if (!existsSync(config.recordingsPath)) mkdirSync(config.recordingsPath, { recursive: true });
 
-  // Initialize database
+  // Initialize database and DAL
   const db = initDatabase(config.databasePath);
-  app.decorate('db', db);
+  const dal = createDAL(db);
+
+  // Make recordingsPath accessible to routes
+  (app as unknown as Record<string, unknown>).recordingsPath = config.recordingsPath;
+
+  // Agent handler
+  const agentHandler = new AgentHandler(app, dal, config.recordingsPath);
+
+  // Dashboard subscribers
+  const dashboardSockets = new Set<import('ws').WebSocket>();
+  agentHandler.setDashboardBroadcast((msg) => {
+    const data = JSON.stringify(msg);
+    for (const socket of dashboardSockets) {
+      if (socket.readyState === 1) {
+        socket.send(data);
+      }
+    }
+  });
 
   // WebSocket support
   await app.register(fastifyWebsocket);
 
-  // Serve dashboard static files if path configured
+  // Serve dashboard static files
   if (config.dashboardStaticPath && existsSync(config.dashboardStaticPath)) {
     await app.register(fastifyStatic, {
       root: path.resolve(config.dashboardStaticPath),
@@ -34,39 +56,36 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   }
 
   // Health endpoint
-  app.get('/health', async () => {
-    return {
-      status: 'ok',
-      version: '0.1.0',
-      uptime: process.uptime(),
-    };
+  app.get('/health', async () => ({
+    status: 'ok',
+    version: '0.1.0',
+    uptime: process.uptime(),
+    machines: dal.listMachines().length,
+    connectedAgents: agentHandler.getConnectedAgentIds().length,
+  }));
+
+  // Agent WebSocket
+  app.get('/ws/agent', { websocket: true }, (socket) => {
+    agentHandler.handleConnection(socket);
   });
 
-  // Agent WebSocket endpoint
-  app.get('/ws/agent', { websocket: true }, (socket, req) => {
-    app.log.info('Agent connected: %s', req.ip);
-    socket.on('message', (raw) => {
-      app.log.debug('Agent message: %s', raw.toString().slice(0, 200));
-      // TODO: implement in EPIC-008
-    });
+  // Dashboard WebSocket
+  app.get('/ws/dashboard', { websocket: true }, (socket) => {
+    dashboardSockets.add(socket);
+    app.log.info('Dashboard connected');
+
     socket.on('close', () => {
-      app.log.info('Agent disconnected: %s', req.ip);
+      dashboardSockets.delete(socket);
+      app.log.info('Dashboard disconnected');
     });
   });
 
-  // Dashboard WebSocket endpoint
-  app.get('/ws/dashboard', { websocket: true }, (socket, req) => {
-    app.log.info('Dashboard connected: %s', req.ip);
-    socket.on('message', (raw) => {
-      app.log.debug('Dashboard message: %s', raw.toString().slice(0, 200));
-      // TODO: implement in EPIC-015
-    });
-    socket.on('close', () => {
-      app.log.info('Dashboard disconnected: %s', req.ip);
-    });
-  });
+  // REST routes
+  await machineRoutes(app, dal);
+  await sessionRoutes(app, dal, agentHandler);
+  await hookRoutes(app, dal);
 
-  // SPA fallback — serve index.html for non-API GET requests
+  // SPA fallback
   app.setNotFoundHandler((req, reply) => {
     if (
       req.method === 'GET' &&
@@ -84,6 +103,7 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   // Graceful shutdown
   const shutdown = async (): Promise<void> => {
     app.log.info('Shutting down...');
+    agentHandler.dispose();
     db.close();
     await app.close();
     process.exit(0);
