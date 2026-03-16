@@ -101,7 +101,8 @@ export async function jobRoutes(
       updateJobWorkspaceStmt.run(workspaceId, id);
     })();
 
-    // Send workspace provision command to agent after transaction commits
+    // TODO: replace with hub:container:create (defined in @chq/shared workforce.ts) once the
+    // agent's container-worktree handler is wired up to handle that message type.
     agentHandler.sendToAgent(machineId, {
       type: 'hub:session:start' as const,
       sessionId: id,

@@ -134,6 +134,9 @@ export class DashboardHandler {
   }
 
   dispose(): void {
+    for (const client of this.clients) {
+      client.socket.terminate();
+    }
     this.clients.clear();
   }
 }

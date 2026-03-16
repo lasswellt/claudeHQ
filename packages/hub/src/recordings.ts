@@ -25,11 +25,11 @@ export function appendRecordingChunks(
 export function getRecordingMeta(
   recordingsPath: string,
   sessionId: string,
-): { exists: boolean; sizeBytes: number; path: string } {
+): { exists: boolean; sizeBytes: number } {
   const filePath = safeRecordingPath(recordingsPath, sessionId);
   const exists = existsSync(filePath);
   const sizeBytes = exists ? statSync(filePath).size : 0;
-  return { exists, sizeBytes, path: filePath };
+  return { exists, sizeBytes };
 }
 
 export function streamRecording(recordingsPath: string, sessionId: string): Readable | null {

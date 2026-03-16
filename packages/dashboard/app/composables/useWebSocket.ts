@@ -74,6 +74,7 @@ function doConnect(): void {
 
   try {
     ws = new WebSocket(url);
+    _global.__chq_ws = ws;
   } catch {
     state.value = 'error';
     scheduleReconnect();
@@ -83,7 +84,9 @@ function doConnect(): void {
   ws.onopen = () => {
     state.value = 'connected';
     reconnectAttempts = 0;
-    console.log('[WS] Connected to Hub');
+    if (import.meta.dev) {
+      console.log('[WS] Connected to Hub');
+    }
   };
 
   ws.onmessage = (event) => {
@@ -109,6 +112,7 @@ function doConnect(): void {
   ws.onclose = () => {
     state.value = 'disconnected';
     ws = null;
+    _global.__chq_ws = null;
     scheduleReconnect();
   };
 
@@ -175,8 +179,10 @@ export function useWebSocket() {
     reconnectAttempts = 50; // Prevent further reconnects
     ws?.close();
     ws = null;
+    _global.__chq_ws = null;
     state.value = 'disconnected';
     initialized = false;
+    _global.__chq_ws_init = false;
   }
 
   return {

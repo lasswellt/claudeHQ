@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
+import rateLimit from '@fastify/rate-limit';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { HubConfig } from '@chq/shared';
@@ -50,6 +51,9 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   agentHandler.setDashboardBroadcast((msg) => {
     dashboardHandler.broadcast(msg);
   });
+
+  // Rate limiting — 100 requests per minute globally
+  await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
 
   // WebSocket support
   await app.register(fastifyWebsocket);
@@ -139,6 +143,7 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   const shutdown = async (): Promise<void> => {
     app.log.info('Shutting down...');
     agentHandler.dispose();
+    dashboardHandler.dispose();
     db.close();
     await app.close();
     process.exit(0);

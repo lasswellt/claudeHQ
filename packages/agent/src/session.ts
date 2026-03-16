@@ -46,6 +46,7 @@ export class PtySession extends EventEmitter {
   private readonly startTime: number;
   private outputBuffer: OutputChunk[] = [];
   private bufferTimer: ReturnType<typeof setInterval> | null = null;
+  private killTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly options: PtySessionOptions;
 
   constructor(options: PtySessionOptions) {
@@ -128,11 +129,12 @@ export class PtySession extends EventEmitter {
     // Try SIGTERM first
     this.ptyProcess.kill();
 
-    // Force kill after 5 seconds
-    setTimeout(() => {
+    // Force kill after 5 seconds — store reference so cleanup() can cancel it
+    this.killTimer = setTimeout(() => {
       if (this._state === 'running') {
         this.ptyProcess?.kill('SIGKILL');
       }
+      this.killTimer = null;
     }, 5000);
   }
 
@@ -152,6 +154,10 @@ export class PtySession extends EventEmitter {
     if (this.bufferTimer) {
       clearInterval(this.bufferTimer);
       this.bufferTimer = null;
+    }
+    if (this.killTimer) {
+      clearTimeout(this.killTimer);
+      this.killTimer = null;
     }
   }
 

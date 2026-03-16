@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DAL } from '../dal.js';
@@ -28,7 +29,7 @@ export async function queueRoutes(app: FastifyInstance, dal: DAL): Promise<void>
 
   app.post<{ Params: { machineId: string } }>('/api/queues/:machineId', async (req) => {
     const body = addBody.parse(req.body);
-    const id = crypto.randomUUID();
+    const id = randomUUID();
 
     dal.insertQueueTask({
       id,

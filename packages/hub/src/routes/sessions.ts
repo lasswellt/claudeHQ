@@ -121,9 +121,7 @@ export async function sessionRoutes(
       flags: parent.flags,
       status: 'queued',
     });
-
-    // Update parent_session_id
-    dal.updateSession(newSessionId, { status: 'queued' });
+    // TODO: persist parent_session_id once dal.insertSession / the sessions schema supports it
 
     const sent = agentHandler.sendToAgent(parent.machine_id, {
       type: 'hub:session:resume',

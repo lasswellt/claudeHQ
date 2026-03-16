@@ -41,7 +41,7 @@ export function getDefaultSecurityConfig(overrides?: Partial<ContainerSecurityCo
     networkMode: 'claude-restricted',          // allowlist proxy network
     securityOpt: ['no-new-privileges'],
     capDrop: ['ALL'],
-    readonlyRootfs: true,
+    readonlyRootfs: true, // All writes must go through /tmp (tmpfs) or /workspace (bind mount)
     tmpfs: { '/tmp': 'rw,noexec,nosuid,size=512m' },
     user: '1000:1000',                        // match host UID
   };

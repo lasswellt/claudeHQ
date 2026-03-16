@@ -3,7 +3,7 @@ import { defineStore } from 'pinia';
 import type { QueueTask, HubToDashboardMessage } from '@chq/shared/browser';
 
 export const useQueuesStore = defineStore('queues', () => {
-  const queuesByMachine = ref<Map<string, QueueTask[]>>(new Map());
+  const queuesByMachine = ref<Record<string, QueueTask[]>>({});
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -16,7 +16,7 @@ export const useQueuesStore = defineStore('queues', () => {
       const res = await fetch(`/api/queues/${machineId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as QueueTask[];
-      queuesByMachine.value.set(machineId, data);
+      queuesByMachine.value = { ...queuesByMachine.value, [machineId]: data };
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch queues';
     } finally {
@@ -26,7 +26,7 @@ export const useQueuesStore = defineStore('queues', () => {
 
   function handleWsMessage(msg: HubToDashboardMessage): void {
     if (msg.type === 'queue:updated') {
-      queuesByMachine.value.set(msg.machineId, msg.queue);
+      queuesByMachine.value = { ...queuesByMachine.value, [msg.machineId]: msg.queue };
     }
   }
 

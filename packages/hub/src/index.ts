@@ -1,5 +1,8 @@
+import pino from 'pino';
 import { hubConfigSchema, loadConfig } from '@chq/shared';
 import { createServer } from './server.js';
+
+const startupLogger = pino({ level: 'info' });
 
 async function main(): Promise<void> {
   const config = loadConfig(hubConfigSchema, undefined, 'CHQ_HUB_');
@@ -10,7 +13,7 @@ async function main(): Promise<void> {
   app.log.info(`Hub listening on ${config.host}:${config.port}`);
 }
 
-main().catch((err) => {
-  console.error('Failed to start Hub:', err);
+main().catch((err: unknown) => {
+  startupLogger.fatal({ err }, 'Failed to start Hub');
   process.exit(1);
 });

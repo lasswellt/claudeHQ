@@ -47,6 +47,9 @@ export class PtyPool extends EventEmitter {
     const sessionId = options.sessionId ?? randomUUID();
     const claudeBinary = options.claudeBinary ?? 'claude';
 
+    // NOTE: --dangerously-skip-permissions is required for autonomous operation.
+    // For non-containerized sessions, this trusts the machine's own isolation.
+    // Container sessions have sandbox-level isolation via Docker.
     const args = [
       '-p',
       options.prompt,

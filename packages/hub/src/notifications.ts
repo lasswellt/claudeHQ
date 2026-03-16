@@ -56,14 +56,27 @@ export class NotificationEngine {
   private isAllowedWebhookUrl(url: string): boolean {
     try {
       const parsed = new URL(url);
-      // Block internal/private IPs
-      const forbidden = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', '[::1]'];
-      if (forbidden.includes(parsed.hostname)) return false;
-      // Block private IP ranges
+      const host = parsed.hostname.toLowerCase();
+
+      // Block internal/private IPv4 hostnames and loopback
+      const forbiddenHosts = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254'];
+      if (forbiddenHosts.includes(host)) return false;
+
+      // Block IPv6 loopback and private ranges (literal addresses in brackets)
+      // Matches ::1, fc00::/7 (fc** / fd**), fe80::/10 (link-local)
+      if (host === '::1' || host === '[::1]') return false;
+      const ipv6Bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+      if (/^fe[89ab][0-9a-f]:/i.test(ipv6Bare)) return false; // fe80::/10 link-local
+      if (/^f[cd][0-9a-f]{2}:/i.test(ipv6Bare)) return false; // fc00::/7 ULA
+
+      // Block private IPv4 ranges
       if (parsed.hostname.startsWith('10.') || parsed.hostname.startsWith('192.168.') ||
           parsed.hostname.match(/^172\.(1[6-9]|2\d|3[01])\./)) return false;
-      // Must be HTTPS (except for known webhook services on HTTP)
-      if (parsed.protocol !== 'https:' && !parsed.hostname.includes('discord') && !parsed.hostname.includes('slack')) {
+
+      // Must be HTTPS — allow HTTP only for exact known webhook domains (not substring match)
+      const isDiscord = host === 'discord.com' || host.endsWith('.discord.com');
+      const isSlack = host === 'hooks.slack.com' || host.endsWith('.slack.com');
+      if (parsed.protocol !== 'https:' && !isDiscord && !isSlack) {
         return false;
       }
       return true;
