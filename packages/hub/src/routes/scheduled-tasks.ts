@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
-import { calculateNextRun } from '../cron.js';
+import { calculateNextRun, isValidCron } from '../cron.js';
 
 export async function scheduledTaskRoutes(app: FastifyInstance, db: Database.Database): Promise<void> {
   app.get('/api/scheduled-tasks', async () => {
@@ -25,8 +25,13 @@ export async function scheduledTaskRoutes(app: FastifyInstance, db: Database.Dat
     concurrencyPolicy: z.enum(['allow', 'forbid', 'replace']).default('forbid'),
   });
 
-  app.post('/api/scheduled-tasks', async (req) => {
+  app.post('/api/scheduled-tasks', async (req, reply) => {
     const body = createBody.parse(req.body);
+
+    if (!isValidCron(body.cronExpression)) {
+      return reply.code(400).send({ error: 'Invalid cron expression. Expected: "minute hour day month weekday" (e.g., "0 * * * *")' });
+    }
+
     const id = randomUUID();
     const nextRun = calculateNextRun(body.cronExpression);
 

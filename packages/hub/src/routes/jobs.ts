@@ -153,21 +153,25 @@ export async function jobRoutes(
     const body = batchBody.parse(req.body);
     const created: string[] = [];
 
-    for (const repoId of body.repoIds) {
-      const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(repoId) as Record<string, unknown> | undefined;
-      if (!repo) continue;
+    // Use transaction for atomicity — all jobs created or none
+    const batchInsert = db.transaction(() => {
+      for (const repoId of body.repoIds) {
+        const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(repoId) as Record<string, unknown> | undefined;
+        if (!repo) continue;
 
-      const id = randomUUID();
-      const machineId = repo.preferred_machine_id as string | null;
-      if (!machineId) continue;
+        const id = randomUUID();
+        const machineId = repo.preferred_machine_id as string | null;
+        if (!machineId) continue;
 
-      insertJobStmt.run(
-        id, repoId, machineId, body.prompt.slice(0, 100), body.prompt,
-        null, null, null, body.autoPr ? 1 : 0, 0,
-        body.tags ? JSON.stringify(body.tags) : null,
-      );
-      created.push(id);
-    }
+        insertJobStmt.run(
+          id, repoId, machineId, body.prompt.slice(0, 100), body.prompt,
+          null, null, null, body.autoPr ? 1 : 0, 0,
+          body.tags ? JSON.stringify(body.tags) : null,
+        );
+        created.push(id);
+      }
+    });
+    batchInsert();
 
     return { created, total: created.length };
   });

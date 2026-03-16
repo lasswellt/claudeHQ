@@ -15,22 +15,24 @@ function matchesCron(expression: string, date: Date): boolean {
     { value: date.getDay(), field: parts[4]!, max: 7 },
   ];
 
-  return checks.every(({ value, field, max }) => matchesField(field, value, max));
+  return checks.every(({ value, field }) => matchesField(field, value));
 }
 
-function matchesField(field: string, value: number, max: number): boolean {
+function matchesField(field: string, value: number): boolean {
   if (field === '*') return true;
 
-  // */N — step
+  // */N — step (validate N > 0)
   if (field.startsWith('*/')) {
     const step = parseInt(field.slice(2), 10);
+    if (!step || step <= 0) return false; // Guard against */0 and NaN
     return value % step === 0;
   }
 
   // N-N — range
   if (field.includes('-')) {
     const [start, end] = field.split('-').map(Number);
-    return value >= (start ?? 0) && value <= (end ?? max);
+    if (start === undefined || end === undefined || isNaN(start) || isNaN(end)) return false;
+    return value >= start && value <= end;
   }
 
   // N,N,N — list
@@ -39,7 +41,20 @@ function matchesField(field: string, value: number, max: number): boolean {
   }
 
   // Exact value
-  return parseInt(field, 10) === value;
+  const exact = parseInt(field, 10);
+  if (isNaN(exact)) return false;
+  return exact === value;
+}
+
+/**
+ * Validates a cron expression has 5 fields with valid syntax.
+ */
+export function isValidCron(expression: string): boolean {
+  const parts = expression.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+
+  const fieldPattern = /^(\*|(\*\/[1-9]\d*)|(\d+(-\d+)?)(,\d+(-\d+)?)*)$/;
+  return parts.every((p) => fieldPattern.test(p));
 }
 
 export function startCronRunner(
@@ -50,6 +65,9 @@ export function startCronRunner(
 ): ReturnType<typeof setInterval> {
   return setInterval(() => {
     const now = new Date();
+    const nowEpoch = Math.floor(now.getTime() / 1000);
+    const currentMinuteStart = nowEpoch - (nowEpoch % 60); // Round to minute boundary
+
     const tasks = db.prepare(
       'SELECT * FROM scheduled_tasks WHERE enabled = 1',
     ).all() as Record<string, unknown>[];
@@ -57,8 +75,15 @@ export function startCronRunner(
     for (const task of tasks) {
       const cronExpr = task.cron_expression as string;
       const concurrencyPolicy = task.concurrency_policy as string;
+      const lastRunAt = (task.last_run_at as number | null) ?? 0;
 
       if (!matchesCron(cronExpr, now)) continue;
+
+      // Prevent double-fire: skip if already ran in this minute
+      const lastRunMinuteStart = lastRunAt - (lastRunAt % 60);
+      if (lastRunMinuteStart >= currentMinuteStart) {
+        continue; // Already fired this minute
+      }
 
       // Check concurrency
       if (concurrencyPolicy === 'forbid') {
@@ -72,10 +97,7 @@ export function startCronRunner(
       }
 
       // Update last_run_at
-      db.prepare('UPDATE scheduled_tasks SET last_run_at = ? WHERE id = ?').run(
-        Math.floor(now.getTime() / 1000),
-        task.id,
-      );
+      db.prepare('UPDATE scheduled_tasks SET last_run_at = ? WHERE id = ?').run(nowEpoch, task.id);
 
       logger.info({ taskId: task.id, name: task.name }, 'Cron task triggered');
 
@@ -92,7 +114,6 @@ export function startCronRunner(
 
 export function calculateNextRun(cronExpression: string): number | null {
   const now = new Date();
-  // Simple: check the next 1440 minutes (24h)
   for (let i = 1; i <= 1440; i++) {
     const candidate = new Date(now.getTime() + i * 60000);
     if (matchesCron(cronExpression, candidate)) {

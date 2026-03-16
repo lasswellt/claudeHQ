@@ -58,7 +58,7 @@ export function createWorktree(
   ], { ...execOpts, cwd: repoDir });
 
   return {
-    repoId: repoDir.split('/').pop()!,
+    repoId: repoDir.replace(/\/+$/, '').split('/').pop() ?? repoDir,
     containerId,
     worktreePath,
     branch: branchName,

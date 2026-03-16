@@ -47,7 +47,7 @@ export class ContainerPool extends EventEmitter {
     return this.activeCount < this.maxContainers;
   }
 
-  async prePullImage(image: string): Promise<void> {
+  async prePullImage(image: string): Promise<boolean> {
     log.info({ image }, 'Pre-pulling image');
     try {
       const stream = await this.docker.pull(image);
@@ -58,14 +58,23 @@ export class ContainerPool extends EventEmitter {
         });
       });
       log.info({ image }, 'Image pulled');
+      return true;
     } catch (err) {
       log.error({ image, err }, 'Failed to pull image');
+      return false;
     }
   }
 
   async create(opts: CreateContainerOptions): Promise<string> {
     if (!this.hasCapacity) {
       throw new Error(`Container pool at capacity (${this.activeCount}/${this.maxContainers})`);
+    }
+
+    // Validate workspace path — prevent mounting sensitive host directories
+    const forbidden = ['/etc', '/var/run', '/root', '/proc', '/sys', '/dev'];
+    const normalizedPath = opts.workspacePath.replace(/\/+$/, '');
+    if (forbidden.some((f) => normalizedPath === f || normalizedPath.startsWith(f + '/'))) {
+      throw new Error(`Workspace path "${opts.workspacePath}" is forbidden — cannot mount system directories`);
     }
 
     const claudeArgs = [
@@ -153,8 +162,13 @@ export class ContainerPool extends EventEmitter {
 
     // Wait for container to exit
     const result = await entry.container.wait();
-    entry.info.status = 'exited';
-    entry.info.exitCode = result.StatusCode;
+
+    // Check if entry still exists (may have been removed by concurrent stop/remove)
+    const current = this.containers.get(id);
+    if (current) {
+      current.info.status = 'exited';
+      current.info.exitCode = result.StatusCode;
+    }
 
     log.info({ id, exitCode: result.StatusCode }, 'Container exited');
     this.emit('container:exited', id, result.StatusCode);
@@ -162,7 +176,7 @@ export class ContainerPool extends EventEmitter {
 
   async stop(id: string): Promise<void> {
     const entry = this.containers.get(id);
-    if (!entry) throw new Error(`Container ${id} not found`);
+    if (!entry) return; // Gracefully handle already-removed
 
     try {
       await entry.container.stop({ t: 10 });
@@ -175,13 +189,15 @@ export class ContainerPool extends EventEmitter {
     const entry = this.containers.get(id);
     if (!entry) return;
 
+    // Delete from map FIRST to prevent concurrent access
+    this.containers.delete(id);
+
     try {
       await entry.container.remove({ force: true });
     } catch {
       // Container may already be removed
     }
 
-    this.containers.delete(id);
     this.emit('container:removed', id);
   }
 
@@ -208,7 +224,9 @@ export class ContainerPool extends EventEmitter {
   }
 
   async dispose(): Promise<void> {
-    for (const [id] of this.containers) {
+    // Copy keys to avoid modifying map during iteration
+    const ids = [...this.containers.keys()];
+    for (const id of ids) {
       await this.remove(id);
     }
     this.removeAllListeners();

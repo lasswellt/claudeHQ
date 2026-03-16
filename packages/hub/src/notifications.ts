@@ -53,7 +53,31 @@ export class NotificationEngine {
       );
   }
 
+  private isAllowedWebhookUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      // Block internal/private IPs
+      const forbidden = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', '[::1]'];
+      if (forbidden.includes(parsed.hostname)) return false;
+      // Block private IP ranges
+      if (parsed.hostname.startsWith('10.') || parsed.hostname.startsWith('192.168.') ||
+          parsed.hostname.match(/^172\.(1[6-9]|2\d|3[01])\./)) return false;
+      // Must be HTTPS (except for known webhook services on HTTP)
+      if (parsed.protocol !== 'https:' && !parsed.hostname.includes('discord') && !parsed.hostname.includes('slack')) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async sendWebhook(webhook: WebhookConfig, event: NotificationEvent): Promise<void> {
+    if (!this.isAllowedWebhookUrl(webhook.url)) {
+      this.logger.warn({ url: webhook.url }, 'Webhook URL blocked — private/internal address');
+      return;
+    }
+
     const payload = this.formatPayload(webhook.format, event);
 
     try {
