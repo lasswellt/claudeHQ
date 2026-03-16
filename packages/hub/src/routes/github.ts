@@ -73,10 +73,10 @@ export async function githubRoutes(
   });
 
   // Get manifest JSON for GitHub App creation flow
-  app.get('/api/github/manifest', async (req) => {
-    const host = req.headers.host ?? 'localhost:7700';
-    const protocol = req.headers['x-forwarded-proto'] ?? 'http';
-    const baseUrl = `${protocol}://${host}`;
+  // baseUrl is provided as a query param or falls back to a safe default.
+  // Do NOT trust x-forwarded-proto/Host headers without trustProxy configured.
+  app.get<{ Querystring: { baseUrl?: string } }>('/api/github/manifest', async (req) => {
+    const baseUrl = req.query.baseUrl ?? `http://localhost:7700`;
 
     return {
       name: 'Claude HQ',
@@ -207,11 +207,14 @@ export async function githubRoutes(
       case 'check_run': {
         const checkRun = payload.check_run as Record<string, unknown>;
         const conclusion = checkRun?.conclusion as string;
-        const headSha = checkRun?.head_sha as string;
+        const headBranch = ((checkRun?.check_suite as Record<string, unknown>)?.head_branch as string) ?? null;
 
-        if (conclusion) {
+        if (conclusion && headBranch) {
           const ciStatus = conclusion === 'success' ? 'passing' : 'failing';
-          db.prepare("UPDATE pull_requests SET ci_status = ?, updated_at = unixepoch() WHERE head_branch IN (SELECT head_branch FROM pull_requests WHERE status = 'open')").run(ciStatus);
+          // Only update PRs that match the specific branch this check ran on
+          db.prepare(
+            "UPDATE pull_requests SET ci_status = ?, updated_at = unixepoch() WHERE head_branch = ? AND status = 'open'",
+          ).run(ciStatus, headBranch);
         }
         break;
       }

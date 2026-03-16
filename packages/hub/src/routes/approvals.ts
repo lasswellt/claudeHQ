@@ -27,15 +27,23 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
   `);
 
   // POST /hooks/permission-request — receives PermissionRequest hook
-  app.post('/hooks/permission-request', async (req, reply) => {
-    const payload = req.body as Record<string, unknown>;
-    const sessionId = payload.session_id as string | undefined;
-    const toolName = payload.tool_name as string | undefined;
-    const toolInput = payload.tool_input
-      ? JSON.stringify(payload.tool_input)
-      : undefined;
+  const hookPayloadSchema = z.object({
+    session_id: z.string(),
+    tool_name: z.string().optional(),
+    tool_input: z.unknown().optional(),
+    hook_event_name: z.string().optional(),
+    permission_mode: z.string().optional(),
+    cwd: z.string().optional(),
+  });
 
-    if (!sessionId) return reply.code(400).send({ error: 'Missing session_id' });
+  app.post('/hooks/permission-request', async (req, reply) => {
+    const parsed = hookPayloadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Invalid hook payload', details: parsed.error.issues });
+    }
+
+    const { session_id: sessionId, tool_name: toolName } = parsed.data;
+    const toolInput = parsed.data.tool_input ? JSON.stringify(parsed.data.tool_input) : undefined;
 
     // Look up session to get machine_id
     const session = db.prepare('SELECT machine_id FROM sessions WHERE id = ?').get(sessionId) as

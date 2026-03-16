@@ -10,13 +10,36 @@ export type WsState = 'connecting' | 'connected' | 'disconnected' | 'error';
 type MessageHandler = (msg: HubToDashboardMessage) => void;
 
 // Singleton state shared across all composable consumers
-const state = ref<WsState>('disconnected') as Ref<WsState>;
-let ws: WebSocket | null = null;
-let reconnectAttempts = 0;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let initialized = false;
-const handlers = new Map<string, Set<MessageHandler>>();
-const globalHandlers = new Set<MessageHandler>();
+// Use a global holder to survive Vite HMR module re-evaluation
+const _global = globalThis as unknown as {
+  __chq_ws_state?: Ref<WsState>;
+  __chq_ws?: WebSocket | null;
+  __chq_ws_attempts?: number;
+  __chq_ws_timer?: ReturnType<typeof setTimeout> | null;
+  __chq_ws_init?: boolean;
+  __chq_ws_handlers?: Map<string, Set<MessageHandler>>;
+  __chq_ws_global_handlers?: Set<MessageHandler>;
+};
+
+const state = (_global.__chq_ws_state ??= ref<WsState>('disconnected') as Ref<WsState>);
+let ws: WebSocket | null = (_global.__chq_ws ?? null);
+let reconnectAttempts = (_global.__chq_ws_attempts ?? 0);
+let reconnectTimer: ReturnType<typeof setTimeout> | null = (_global.__chq_ws_timer ?? null);
+let initialized = (_global.__chq_ws_init ?? false);
+const handlers = (_global.__chq_ws_handlers ??= new Map<string, Set<MessageHandler>>());
+const globalHandlers = (_global.__chq_ws_global_handlers ??= new Set<MessageHandler>());
+
+// Clean up stale connection on HMR
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    initialized = false;
+    _global.__chq_ws_init = false;
+  });
+}
 
 function getWsUrl(): string {
   // In production (Hub serves dashboard), use same origin

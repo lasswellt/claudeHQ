@@ -15,6 +15,7 @@ export class Daemon {
   private readonly pool: PtyPool;
   private readonly wsClient: WsClient;
   private readonly recorders = new Map<string, Recorder>();
+  private readonly sessionMeta = new Map<string, { prompt: string; cwd: string }>();
   private running = false;
 
   constructor(config: AgentConfig) {
@@ -43,12 +44,13 @@ export class Daemon {
       const session = this.pool.get(sessionId);
       if (!session) return;
 
+      const meta = this.sessionMeta.get(sessionId);
       this.wsClient.send({
         type: 'agent:session:started',
         sessionId,
         machineId: this.config.machineId,
-        prompt: '', // Will be set by the caller
-        cwd: '',
+        prompt: meta?.prompt ?? '',
+        cwd: meta?.cwd ?? '',
         pid: session.pid ?? 0,
       });
     });
@@ -147,6 +149,9 @@ export class Daemon {
       log.warn({ sessionId: msg.sessionId }, 'No capacity for new session');
       return;
     }
+
+    // Store session metadata for the started event
+    this.sessionMeta.set(msg.sessionId, { prompt: msg.prompt, cwd: msg.cwd });
 
     // Create recorder for this session
     const recorder = new Recorder({

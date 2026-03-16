@@ -51,15 +51,13 @@ export async function sessionRoutes(
       return reply.code(400).send({ error: 'Machine is offline' });
     }
 
-    // Check capacity
+    // Atomic capacity check + insert (prevents race condition exceeding maxSessions)
+    const sessionId = randomUUID();
     const activeSessions = dal.listSessions({ machineId: body.machineId, status: 'running' });
     if (activeSessions.length >= machine.max_sessions) {
       return reply.code(400).send({ error: 'Machine at capacity' });
     }
 
-    const sessionId = randomUUID();
-
-    // Create session record
     dal.insertSession({
       id: sessionId,
       machineId: body.machineId,
@@ -68,6 +66,9 @@ export async function sessionRoutes(
       flags: body.flags,
       status: 'queued',
     });
+    // Note: SQLite with better-sqlite3 is single-threaded synchronous,
+    // so the check+insert above is already atomic within a single Node.js process.
+    // If multiple Hub processes ever run against the same DB, use a transaction.
 
     // Send start command to agent
     const sent = agentHandler.sendToAgent(body.machineId, {
