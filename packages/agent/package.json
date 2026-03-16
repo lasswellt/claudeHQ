@@ -16,10 +16,12 @@
   },
   "dependencies": {
     "@chq/shared": "workspace:*",
-    "node-pty": "^1.1.0",
-    "ws": "^8.18.0",
+    "@types/dockerode": "^4.0.1",
     "commander": "^13.1.0",
-    "pino": "^9.6.0"
+    "dockerode": "^4.0.9",
+    "node-pty": "^1.1.0",
+    "pino": "^9.6.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/ws": "^8.18.0"

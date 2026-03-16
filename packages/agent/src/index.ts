@@ -11,3 +11,7 @@ export { provisionWorkspace, detectPackageManager, detectNodeVersion } from './w
 export { createDockerExecSpawn, createDockerRunSpawn } from './spawn-docker.js';
 export { createSshSpawn } from './spawn-ssh.js';
 export { detectDevcontainer, getDevcontainerImage } from './devcontainer.js';
+export { ContainerPool } from './container-pool.js';
+export { getDefaultSecurityConfig } from './container-security.js';
+export { ensureRepoCloned, createWorktree, commitAndPush, removeWorktree } from './container-worktree.js';
+export { runSetupPipeline } from './container-setup.js';

@@ -110,4 +110,14 @@ export {
   hubWorkspaceCleanupMsg,
   agentWorkspaceReadyMsg,
   agentWorkspaceErrorMsg,
+  // Container orchestration protocol
+  hubContainerCreateMsg,
+  hubContainerStopMsg,
+  hubContainerRemoveMsg,
+  agentContainerCreatedMsg,
+  agentContainerStartedMsg,
+  agentContainerStdoutMsg,
+  agentContainerExitedMsg,
+  agentContainerStatsMsg,
+  agentContainerErrorMsg,
 } from './workforce.js';

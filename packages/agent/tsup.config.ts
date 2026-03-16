@@ -12,5 +12,6 @@ export default defineConfig({
     'ws',
     'commander',
     'pino',
+    'dockerode',
   ],
 });

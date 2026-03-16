@@ -116,3 +116,71 @@ export const agentWorkspaceErrorMsg = z.object({
   error: z.string(),
   phase: z.string(),
 });
+
+// ── Container Orchestration Protocol ─────────────────────────
+
+export const hubContainerCreateMsg = z.object({
+  type: z.literal('hub:container:create'),
+  jobId: z.string(),
+  repoId: z.string(),
+  repoUrl: z.string(),
+  branch: z.string(),
+  prompt: z.string(),
+  setupCommands: z.array(z.string()).default([]),
+  preFlightCommands: z.array(z.string()).default([]),
+  env: z.record(z.string()).default({}),
+});
+
+export const hubContainerStopMsg = z.object({
+  type: z.literal('hub:container:stop'),
+  containerId: z.string(),
+});
+
+export const hubContainerRemoveMsg = z.object({
+  type: z.literal('hub:container:remove'),
+  containerId: z.string(),
+});
+
+export const agentContainerCreatedMsg = z.object({
+  type: z.literal('agent:container:created'),
+  jobId: z.string(),
+  containerId: z.string(),
+});
+
+export const agentContainerStartedMsg = z.object({
+  type: z.literal('agent:container:started'),
+  jobId: z.string(),
+  containerId: z.string(),
+});
+
+export const agentContainerStdoutMsg = z.object({
+  type: z.literal('agent:container:stdout'),
+  containerId: z.string(),
+  data: z.string(),
+});
+
+export const agentContainerExitedMsg = z.object({
+  type: z.literal('agent:container:exited'),
+  jobId: z.string(),
+  containerId: z.string(),
+  exitCode: z.number(),
+  commitHash: z.string().nullable(),
+  filesChanged: z.number(),
+  branch: z.string(),
+});
+
+export const agentContainerStatsMsg = z.object({
+  type: z.literal('agent:container:stats'),
+  containerId: z.string(),
+  cpuPercent: z.number(),
+  memoryMB: z.number(),
+  pids: z.number(),
+});
+
+export const agentContainerErrorMsg = z.object({
+  type: z.literal('agent:container:error'),
+  jobId: z.string(),
+  containerId: z.string().optional(),
+  error: z.string(),
+  phase: z.string(),
+});
