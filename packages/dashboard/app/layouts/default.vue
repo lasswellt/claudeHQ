@@ -18,6 +18,7 @@ const navItems = [
   { title: 'Approvals', icon: 'mdi-shield-check', to: '/approvals' },
   { title: 'Costs', icon: 'mdi-currency-usd', to: '/costs' },
   { title: 'Settings', icon: 'mdi-cog', to: '/settings/approval-policies' },
+  { title: 'Help', icon: 'mdi-help-circle-outline', to: '/help' },
 ];
 
 function toggleTheme(): void {
