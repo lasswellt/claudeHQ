@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import type { ApprovalRequest } from '@chq/shared';
+import type { ApprovalRequest } from '@chq/shared/browser';
 
 export const useApprovalsStore = defineStore('approvals', () => {
   const approvals = ref<ApprovalRequest[]>([]);

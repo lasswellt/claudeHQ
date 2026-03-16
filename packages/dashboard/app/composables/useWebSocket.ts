@@ -1,64 +1,118 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, type Ref } from 'vue';
 import {
   hubToDashboardSchema,
   type HubToDashboardMessage,
   type DashboardToHubMessage,
-} from '@chq/shared';
+} from '@chq/shared/browser';
 
 export type WsState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
 type MessageHandler = (msg: HubToDashboardMessage) => void;
 
-export function useWebSocket() {
-  const state = ref<WsState>('disconnected');
-  let ws: WebSocket | null = null;
-  let reconnectAttempts = 0;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  const handlers = new Map<string, Set<MessageHandler>>();
-  const globalHandlers = new Set<MessageHandler>();
+// Singleton state shared across all composable consumers
+const state = ref<WsState>('disconnected') as Ref<WsState>;
+let ws: WebSocket | null = null;
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let initialized = false;
+const handlers = new Map<string, Set<MessageHandler>>();
+const globalHandlers = new Set<MessageHandler>();
 
-  function connect(): void {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/ws/dashboard`;
+function getWsUrl(): string {
+  // In production (Hub serves dashboard), use same origin
+  // In dev, use runtimeConfig or fall back to Hub default port
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
-    state.value = 'connecting';
+  if (window.location.port === '7700') {
+    // Production: dashboard served by Hub on same port
+    return `${protocol}//${window.location.host}/ws/dashboard`;
+  }
+
+  // Dev mode: connect directly to Hub
+  // Try runtimeConfig, fall back to localhost:7700
+  try {
+    const config = useRuntimeConfig();
+    const hubWsUrl = config.public.hubWsUrl as string;
+    if (hubWsUrl) return `${hubWsUrl}/ws/dashboard`;
+  } catch {
+    // useRuntimeConfig not available outside Nuxt context
+  }
+
+  return `ws://localhost:7700/ws/dashboard`;
+}
+
+function doConnect(): void {
+  if (typeof window === 'undefined') return; // SSR guard
+  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+
+  const url = getWsUrl();
+
+  state.value = 'connecting';
+
+  try {
     ws = new WebSocket(url);
+  } catch {
+    state.value = 'error';
+    scheduleReconnect();
+    return;
+  }
 
-    ws.onopen = () => {
-      state.value = 'connected';
-      reconnectAttempts = 0;
-    };
+  ws.onopen = () => {
+    state.value = 'connected';
+    reconnectAttempts = 0;
+    console.log('[WS] Connected to Hub');
+  };
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data as string) as unknown;
-        const msg = hubToDashboardSchema.parse(data);
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data as string) as unknown;
+      const msg = hubToDashboardSchema.parse(data);
 
-        // Notify global handlers
-        for (const handler of globalHandlers) {
+      for (const handler of globalHandlers) {
+        handler(msg);
+      }
+
+      const typeHandlers = handlers.get(msg.type);
+      if (typeHandlers) {
+        for (const handler of typeHandlers) {
           handler(msg);
         }
-
-        // Notify type-specific handlers
-        const typeHandlers = handlers.get(msg.type);
-        if (typeHandlers) {
-          for (const handler of typeHandlers) {
-            handler(msg);
-          }
-        }
-      } catch {
-        // Invalid message — ignore
       }
-    };
+    } catch {
+      // Invalid message — ignore
+    }
+  };
 
-    ws.onclose = () => {
-      state.value = 'disconnected';
-      scheduleReconnect();
-    };
+  ws.onclose = () => {
+    state.value = 'disconnected';
+    ws = null;
+    scheduleReconnect();
+  };
 
-    ws.onerror = () => {
-      state.value = 'error';
-    };
+  ws.onerror = () => {
+    // onclose will fire after onerror, which handles reconnect
+  };
+}
+
+function scheduleReconnect(): void {
+  if (reconnectAttempts >= 50) return; // Stop after 50 attempts
+
+  const baseDelay = 1000;
+  const maxDelay = 30000;
+  const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts), maxDelay);
+  reconnectAttempts++;
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    doConnect();
+  }, delay);
+}
+
+export function useWebSocket() {
+  // Initialize once on first use
+  if (!initialized && typeof window !== 'undefined') {
+    initialized = true;
+    doConnect();
   }
 
   function send(msg: DashboardToHubMessage): void {
@@ -85,36 +139,17 @@ export function useWebSocket() {
     return () => globalHandlers.delete(handler);
   }
 
-  function scheduleReconnect(): void {
-    const baseDelay = 1000;
-    const maxDelay = 30000;
-    const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts), maxDelay);
-    reconnectAttempts++;
-
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      connect();
-    }, delay);
-  }
-
   function disconnect(): void {
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    reconnectAttempts = Infinity; // Prevent reconnect
+    reconnectAttempts = 50; // Prevent further reconnects
     ws?.close();
     ws = null;
     state.value = 'disconnected';
+    initialized = false;
   }
-
-  // Auto-connect
-  connect();
-
-  // Cleanup on unmount
-  onUnmounted(() => {
-    disconnect();
-  });
 
   return {
     state,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import type { ApprovalPolicyRule } from '@chq/shared';
+import type { ApprovalPolicyRule } from '@chq/shared/browser';
 
 definePageMeta({ layout: 'default' });
 

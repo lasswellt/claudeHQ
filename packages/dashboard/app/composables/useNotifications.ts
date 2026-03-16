@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useWebSocket } from './useWebSocket';
-import type { HubToDashboardMessage } from '@chq/shared';
+import type { HubToDashboardMessage } from '@chq/shared/browser';
 
 export interface NotificationItem {
   id: string;

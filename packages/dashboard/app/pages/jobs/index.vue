@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import type { JobRecord } from '@chq/shared';
+import type { JobRecord } from '@chq/shared/browser';
 
 definePageMeta({ layout: 'default' });
 

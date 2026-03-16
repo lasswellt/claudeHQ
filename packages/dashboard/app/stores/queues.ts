@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { QueueTask, HubToDashboardMessage } from '@chq/shared';
+import type { QueueTask, HubToDashboardMessage } from '@chq/shared/browser';
 
 export const useQueuesStore = defineStore('queues', () => {
   const queuesByMachine = ref<Map<string, QueueTask[]>>(new Map());

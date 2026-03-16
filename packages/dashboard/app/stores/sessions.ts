@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import type { SessionRecord, HubToDashboardMessage } from '@chq/shared';
+import type { SessionRecord, HubToDashboardMessage } from '@chq/shared/browser';
 
 export const useSessionsStore = defineStore('sessions', () => {
   const sessions = ref<SessionRecord[]>([]);

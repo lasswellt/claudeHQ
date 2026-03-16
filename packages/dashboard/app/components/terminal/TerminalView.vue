@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useTerminal } from '../../composables/useTerminal';
 import { useWebSocket } from '../../composables/useWebSocket';
-import type { HubToDashboardMessage } from '@chq/shared';
+import type { HubToDashboardMessage } from '@chq/shared/browser';
 
 const props = defineProps<{
   sessionId: string;

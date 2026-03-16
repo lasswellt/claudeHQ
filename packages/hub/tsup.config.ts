@@ -6,6 +6,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
+  noExternal: ['@chq/shared', 'zod'],
   external: [
     'fastify',
     '@fastify/websocket',
@@ -13,7 +14,5 @@ export default defineConfig({
     'better-sqlite3',
     'pino',
     'ws',
-    'zod',
-    '@chq/shared',
   ],
 });

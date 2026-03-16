@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useMachinesStore } from '../../stores/machines';
-import type { QueueTask } from '@chq/shared';
+import type { QueueTask } from '@chq/shared/browser';
 
 definePageMeta({ layout: 'default' });
 

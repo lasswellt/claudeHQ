@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import type { MachineRecord, HubToDashboardMessage } from '@chq/shared';
+import type { MachineRecord, HubToDashboardMessage } from '@chq/shared/browser';
 
 export const useMachinesStore = defineStore('machines', () => {
   const machines = ref<MachineRecord[]>([]);

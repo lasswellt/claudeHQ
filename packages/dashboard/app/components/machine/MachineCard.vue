@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MachineRecord } from '@chq/shared';
+import type { MachineRecord } from '@chq/shared/browser';
 
 defineProps<{ machine: MachineRecord }>();
 defineEmits<{ (e: 'select', id: string): void }>();

@@ -1,4 +1,5 @@
 export default defineNuxtConfig({
+  srcDir: 'app/',
   ssr: false,
   devtools: { enabled: true },
 
@@ -23,6 +24,19 @@ export default defineNuxtConfig({
   modules: [
     '@pinia/nuxt',
   ],
+
+  runtimeConfig: {
+    public: {
+      hubWsUrl: process.env.NUXT_PUBLIC_HUB_WS_URL || 'ws://localhost:7700',
+    },
+  },
+
+  // Proxy HTTP requests to Hub in dev mode
+  routeRules: {
+    '/api/**': { proxy: 'http://localhost:7700/api/**' },
+    '/hooks/**': { proxy: 'http://localhost:7700/hooks/**' },
+    '/health': { proxy: 'http://localhost:7700/health' },
+  },
 
   compatibilityDate: '2025-01-01',
 });

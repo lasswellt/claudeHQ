@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import type { RepoRecord } from '@chq/shared';
+import type { RepoRecord } from '@chq/shared/browser';
 
 definePageMeta({ layout: 'default' });
 
