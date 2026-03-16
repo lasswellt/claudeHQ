@@ -1,5 +1,39 @@
 import type Database from 'better-sqlite3';
-import type { FastifyBaseLogger } from 'fastify';
+
+// Prepared statements are cached per Database instance so they are compiled once
+// rather than on every call to selectMachine / checkBudget.
+interface SchedulerStmts {
+  getOnlineMachines: Database.Statement;
+  countRunningSessions: Database.Statement;
+  countQueueDepth: Database.Statement;
+  getBudgetConfig: Database.Statement;
+  sumGlobalDailySpend: Database.Statement;
+  sumMachineDailySpend: Database.Statement;
+}
+
+const stmtCache = new WeakMap<Database.Database, SchedulerStmts>();
+
+function getStmts(db: Database.Database): SchedulerStmts {
+  const cached = stmtCache.get(db);
+  if (cached) return cached;
+
+  const stmts: SchedulerStmts = {
+    getOnlineMachines: db.prepare("SELECT * FROM machines WHERE status = 'online'"),
+    countRunningSessions: db.prepare(
+      "SELECT COUNT(*) as c FROM sessions WHERE machine_id = ? AND status = 'running'",
+    ),
+    countQueueDepth: db.prepare('SELECT COUNT(*) as c FROM queue WHERE machine_id = ?'),
+    getBudgetConfig: db.prepare("SELECT * FROM budget_config WHERE id = 'default'"),
+    sumGlobalDailySpend: db.prepare(
+      'SELECT COALESCE(SUM(cost_usd), 0) as total FROM session_costs WHERE created_at >= ?',
+    ),
+    sumMachineDailySpend: db.prepare(
+      'SELECT COALESCE(SUM(sc.cost_usd), 0) as total FROM session_costs sc JOIN sessions s ON sc.session_id = s.id WHERE s.machine_id = ? AND sc.created_at >= ?',
+    ),
+  };
+  stmtCache.set(db, stmts);
+  return stmts;
+}
 
 export interface MachineScore {
   machineId: string;
@@ -14,7 +48,8 @@ export function selectMachine(
   db: Database.Database,
   requirements?: string[],
 ): MachineScore | null {
-  const machines = db.prepare("SELECT * FROM machines WHERE status = 'online'").all() as Record<string, unknown>[];
+  const stmts = getStmts(db);
+  const machines = stmts.getOnlineMachines.all() as Record<string, unknown>[];
 
   if (machines.length === 0) return null;
 
@@ -33,7 +68,7 @@ export function selectMachine(
     }
 
     // Count active sessions
-    const active = db.prepare("SELECT COUNT(*) as c FROM sessions WHERE machine_id = ? AND status = 'running'").get(machineId) as { c: number };
+    const active = stmts.countRunningSessions.get(machineId) as { c: number };
     const freeSlots = maxSessions - active.c;
 
     if (freeSlots <= 0) continue;
@@ -45,7 +80,7 @@ export function selectMachine(
     const memPercent = (meta.memPercent as number) ?? 50;
 
     // Queue depth
-    const queueDepth = (db.prepare('SELECT COUNT(*) as c FROM queue WHERE machine_id = ?').get(machineId) as { c: number }).c;
+    const queueDepth = (stmts.countQueueDepth.get(machineId) as { c: number }).c;
 
     // Score: higher = better
     const score = freeSlots * 10 + (100 - cpuPercent) + (100 - memPercent) - queueDepth * 5;
@@ -64,7 +99,8 @@ export function checkBudget(
   db: Database.Database,
   machineId?: string,
 ): { allowed: boolean; reason?: string; dailySpent: number; globalDailySpent: number } {
-  const config = db.prepare("SELECT * FROM budget_config WHERE id = 'default'").get() as Record<string, unknown> | undefined;
+  const stmts = getStmts(db);
+  const config = stmts.getBudgetConfig.get() as Record<string, unknown> | undefined;
 
   if (!config || !(config.enabled as number)) {
     return { allowed: true, dailySpent: 0, globalDailySpent: 0 };
@@ -73,9 +109,7 @@ export function checkBudget(
   const todayStart = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
 
   // Global daily spend
-  const globalSpent = db.prepare(
-    'SELECT COALESCE(SUM(cost_usd), 0) as total FROM session_costs WHERE created_at >= ?',
-  ).get(todayStart) as { total: number };
+  const globalSpent = stmts.sumGlobalDailySpend.get(todayStart) as { total: number };
 
   const globalDailyMax = config.global_daily_usd as number | null;
   if (globalDailyMax && globalSpent.total >= globalDailyMax) {
@@ -85,9 +119,7 @@ export function checkBudget(
   // Per-machine daily spend
   let machineSpent = 0;
   if (machineId) {
-    const result = db.prepare(
-      'SELECT COALESCE(SUM(sc.cost_usd), 0) as total FROM session_costs sc JOIN sessions s ON sc.session_id = s.id WHERE s.machine_id = ? AND sc.created_at >= ?',
-    ).get(machineId, todayStart) as { total: number };
+    const result = stmts.sumMachineDailySpend.get(machineId, todayStart) as { total: number };
     machineSpent = result.total;
 
     const machineDailyMax = config.per_machine_daily_usd as number | null;

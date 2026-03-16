@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import pino from 'pino';
 
 const log = pino({ name: 'container-worktree' });

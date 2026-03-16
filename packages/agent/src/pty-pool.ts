@@ -106,7 +106,7 @@ export class PtyPool extends EventEmitter {
 
   async killAll(): Promise<void> {
     const killPromises = [...this.sessions.entries()].map(
-      ([id, session]) =>
+      ([_id, session]) =>
         new Promise<void>((resolve) => {
           if (session.state !== 'running') {
             resolve();

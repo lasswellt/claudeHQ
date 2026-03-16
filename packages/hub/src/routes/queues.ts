@@ -45,7 +45,7 @@ export async function queueRoutes(app: FastifyInstance, dal: DAL): Promise<void>
   // Remove task from queue
   app.delete<{ Params: { machineId: string; taskId: string } }>(
     '/api/queues/:machineId/:taskId',
-    async (req, reply) => {
+    async (req, _reply) => {
       dal.removeQueueTask(req.params.taskId);
       return { deleted: true };
     },

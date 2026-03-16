@@ -172,8 +172,13 @@ export async function sessionRoutes(
     return { status: 'input_sent' };
   });
 
+  const uuidSchema = z.string().uuid();
+
   // Get recording stream
   app.get<{ Params: { id: string } }>('/api/sessions/:id/recording', async (req, reply) => {
+    const parseResult = uuidSchema.safeParse(req.params.id);
+    if (!parseResult.success) return reply.code(400).send({ error: 'Invalid session ID' });
+
     const session = dal.getSession(req.params.id);
     if (!session) return reply.code(404).send({ error: 'Session not found' });
 
@@ -189,6 +194,9 @@ export async function sessionRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/sessions/:id/recording/meta',
     async (req, reply) => {
+      const parseResult = uuidSchema.safeParse(req.params.id);
+      if (!parseResult.success) return reply.code(400).send({ error: 'Invalid session ID' });
+
       const recordingsPath = (app as unknown as { recordingsPath: string }).recordingsPath;
       const meta = getRecordingMeta(recordingsPath, req.params.id);
       if (!meta.exists) return reply.code(404).send({ error: 'Recording not found' });

@@ -4,16 +4,37 @@ import { z } from 'zod';
 import type Database from 'better-sqlite3';
 
 export async function repoRoutes(app: FastifyInstance, db: Database.Database): Promise<void> {
+  const listReposStmt = db.prepare('SELECT * FROM repos ORDER BY name');
+  const getRepoByIdStmt = db.prepare('SELECT * FROM repos WHERE id = ?');
+  const getRepoIdOnlyStmt = db.prepare('SELECT id FROM repos WHERE id = ?');
+  const getJobsByRepoStmt = db.prepare(
+    'SELECT * FROM jobs WHERE repo_id = ? ORDER BY created_at DESC LIMIT 10',
+  );
+  const getWorkspacesByRepoStmt = db.prepare(
+    "SELECT * FROM workspaces WHERE repo_id = ? AND status != 'deleted'",
+  );
+  const insertRepoStmt = db.prepare(`
+    INSERT INTO repos (id, url, name, owner, default_branch, auth_method,
+      preferred_machine_id, dependency_manager, node_version,
+      setup_commands, pre_flight_commands, post_flight_commands, tags)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const deleteRepoStmt = db.prepare('DELETE FROM repos WHERE id = ?');
+  const importRepoStmt = db.prepare(`
+    INSERT INTO repos (id, url, name, owner, default_branch, auth_method)
+    VALUES (?, ?, ?, ?, 'main', 'ssh_key')
+  `);
+
   app.get('/api/repos', async () => {
-    return db.prepare('SELECT * FROM repos ORDER BY name').all();
+    return listReposStmt.all();
   });
 
   app.get<{ Params: { id: string } }>('/api/repos/:id', async (req, reply) => {
-    const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(req.params.id);
+    const repo = getRepoByIdStmt.get(req.params.id);
     if (!repo) return reply.code(404).send({ error: 'Repo not found' });
 
-    const jobs = db.prepare('SELECT * FROM jobs WHERE repo_id = ? ORDER BY created_at DESC LIMIT 10').all(req.params.id);
-    const workspaces = db.prepare('SELECT * FROM workspaces WHERE repo_id = ? AND status != ?').all(req.params.id, 'deleted');
+    const jobs = getJobsByRepoStmt.all(req.params.id);
+    const workspaces = getWorkspacesByRepoStmt.all(req.params.id);
 
     return { ...(repo as Record<string, unknown>), jobs, workspaces };
   });
@@ -37,12 +58,7 @@ export async function repoRoutes(app: FastifyInstance, db: Database.Database): P
     const body = createBody.parse(req.body);
     const id = randomUUID();
 
-    db.prepare(`
-      INSERT INTO repos (id, url, name, owner, default_branch, auth_method,
-        preferred_machine_id, dependency_manager, node_version,
-        setup_commands, pre_flight_commands, post_flight_commands, tags)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    insertRepoStmt.run(
       id, body.url, body.name, body.owner ?? null, body.default_branch,
       body.auth_method, body.preferred_machine_id ?? null,
       body.dependency_manager ?? null, body.node_version ?? null,
@@ -56,7 +72,7 @@ export async function repoRoutes(app: FastifyInstance, db: Database.Database): P
   });
 
   app.put<{ Params: { id: string } }>('/api/repos/:id', async (req, reply) => {
-    const existing = db.prepare('SELECT id FROM repos WHERE id = ?').get(req.params.id);
+    const existing = getRepoIdOnlyStmt.get(req.params.id);
     if (!existing) return reply.code(404).send({ error: 'Repo not found' });
 
     const body = createBody.partial().parse(req.body);
@@ -83,14 +99,15 @@ export async function repoRoutes(app: FastifyInstance, db: Database.Database): P
 
     if (sets.length > 0) {
       params.push(req.params.id);
+      // Dynamic UPDATE: column names come from the ALLOWED_COLUMNS whitelist — not user input
       db.prepare(`UPDATE repos SET ${sets.join(', ')} WHERE id = ?`).run(...params);
     }
 
-    return db.prepare('SELECT * FROM repos WHERE id = ?').get(req.params.id);
+    return getRepoByIdStmt.get(req.params.id);
   });
 
   app.delete<{ Params: { id: string } }>('/api/repos/:id', async (req, reply) => {
-    const result = db.prepare('DELETE FROM repos WHERE id = ?').run(req.params.id);
+    const result = deleteRepoStmt.run(req.params.id);
     if (result.changes === 0) return reply.code(404).send({ error: 'Repo not found' });
     return { deleted: true };
   });
@@ -108,11 +125,8 @@ export async function repoRoutes(app: FastifyInstance, db: Database.Database): P
     const name = match?.[2] ?? url.split('/').pop()?.replace('.git', '') ?? 'unknown';
 
     const id = randomUUID();
-    db.prepare(`
-      INSERT INTO repos (id, url, name, owner, default_branch, auth_method)
-      VALUES (?, ?, ?, ?, 'main', 'ssh_key')
-    `).run(id, url, name, owner ?? null);
+    importRepoStmt.run(id, url, name, owner ?? null);
 
-    return db.prepare('SELECT * FROM repos WHERE id = ?').get(id);
+    return getRepoByIdStmt.get(id);
   });
 }

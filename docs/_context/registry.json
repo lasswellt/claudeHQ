@@ -39,10 +39,23 @@
   ],
   "codeReview": {
     "date": "2026-03-16",
-    "criticalIssues": 6,
-    "highIssues": 6,
-    "allFixed": true,
-    "fixCommits": ["a94d44e", "0789874"]
+    "scope": "full-codebase",
+    "status": "fail",
+    "criticalIssues": 2,
+    "highIssues": 7,
+    "mediumIssues": 24,
+    "lowIssues": 14,
+    "infoIssues": 4,
+    "totalFindings": 51,
+    "allFixed": false,
+    "report": "docs/roadmap/CODEBASE_REVIEW_2026-03-16.md",
+    "priorReview": {
+      "date": "2026-03-16",
+      "criticalIssues": 6,
+      "highIssues": 6,
+      "allFixed": true,
+      "fixCommits": ["a94d44e", "0789874"]
+    }
   },
   "nextPhase": {
     "id": "PHASE-9",
@@ -50,9 +63,12 @@
     "epics": ["EPIC-042", "EPIC-043", "EPIC-044", "EPIC-045", "EPIC-046"]
   },
   "lastExecution": {
-    "skill": "phase-plan",
+    "skill": "sprint-review",
     "date": "2026-03-16",
-    "outcome": "Added Phase 9 with 5 epics (042-046) for container orchestration with sandboxed autonomy"
+    "scope": "full-codebase",
+    "status": "fail",
+    "findings": 51,
+    "outcome": "Full codebase review: 2 critical, 7 high, 24 medium, 14 low, 4 info findings"
   },
   "researchIndex": {
     "path": "docs/_research/research-index.json",

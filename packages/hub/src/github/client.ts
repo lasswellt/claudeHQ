@@ -9,16 +9,31 @@ export interface GitHubConfig {
   privateKey?: string;
   installationId?: string;
   patToken?: string;
+  webhookSecret?: string;
 }
 
 export class GitHubClient {
   private octokit: Octokit | null = null;
   private readonly db: Database.Database;
   private readonly logger: FastifyBaseLogger;
+  // Prepared statements compiled once at construction time
+  private readonly getConfigStmt: Database.Statement;
+  private readonly upsertConfigStmt: Database.Statement;
 
   constructor(db: Database.Database, logger: FastifyBaseLogger) {
     this.db = db;
     this.logger = logger;
+    this.getConfigStmt = db.prepare("SELECT * FROM github_config WHERE id = 'default'");
+    this.upsertConfigStmt = db.prepare(`
+      INSERT INTO github_config (id, app_id, private_key, client_id, client_secret, webhook_secret, installation_id, slug, auth_method, pat_token, updated_at)
+      VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+      ON CONFLICT(id) DO UPDATE SET
+        app_id = excluded.app_id, private_key = excluded.private_key,
+        client_id = excluded.client_id, client_secret = excluded.client_secret,
+        webhook_secret = excluded.webhook_secret, installation_id = excluded.installation_id,
+        slug = excluded.slug, auth_method = excluded.auth_method, pat_token = excluded.pat_token,
+        updated_at = unixepoch()
+    `);
   }
 
   async initialize(): Promise<boolean> {
@@ -55,7 +70,7 @@ export class GitHubClient {
   }
 
   getConfig(): GitHubConfig | null {
-    const row = this.db.prepare("SELECT * FROM github_config WHERE id = 'default'").get() as Record<string, unknown> | undefined;
+    const row = this.getConfigStmt.get() as Record<string, unknown> | undefined;
     if (!row) return null;
     return {
       authMethod: (row.auth_method as string) as GitHubConfig['authMethod'],
@@ -67,16 +82,7 @@ export class GitHubClient {
   }
 
   saveConfig(config: GitHubConfig & { slug?: string; clientId?: string; clientSecret?: string; webhookSecret?: string }): void {
-    this.db.prepare(`
-      INSERT INTO github_config (id, app_id, private_key, client_id, client_secret, webhook_secret, installation_id, slug, auth_method, pat_token, updated_at)
-      VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
-      ON CONFLICT(id) DO UPDATE SET
-        app_id = excluded.app_id, private_key = excluded.private_key,
-        client_id = excluded.client_id, client_secret = excluded.client_secret,
-        webhook_secret = excluded.webhook_secret, installation_id = excluded.installation_id,
-        slug = excluded.slug, auth_method = excluded.auth_method, pat_token = excluded.pat_token,
-        updated_at = unixepoch()
-    `).run(
+    this.upsertConfigStmt.run(
       config.appId ?? null, config.privateKey ?? null,
       config.clientId ?? null, config.clientSecret ?? null,
       config.webhookSecret ?? null, config.installationId ?? null,

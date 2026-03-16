@@ -26,6 +26,21 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
     WHERE id = ? AND status = 'pending'
   `);
 
+  const getSessionMachineStmt = db.prepare('SELECT machine_id FROM sessions WHERE id = ?');
+  const listPolicyRulesStmt = db.prepare('SELECT * FROM approval_policy_rules ORDER BY priority ASC');
+  const insertPolicyRuleStmt = db.prepare(`
+    INSERT INTO approval_policy_rules
+    (id, name, description, enabled, priority, match_tool_name, match_bash_command_pattern,
+     match_risk_level, action)
+    VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `);
+  const insertRememberRuleStmt = db.prepare(`
+    INSERT INTO approval_policy_rules
+    (id, name, enabled, priority, match_tool_name, action, created_from_approval_id)
+    VALUES (?, ?, 1, 45, ?, 'auto_approve', ?)
+  `);
+  const deletePolicyRuleStmt = db.prepare('DELETE FROM approval_policy_rules WHERE id = ?');
+
   // POST /hooks/permission-request — receives PermissionRequest hook
   const hookPayloadSchema = z.object({
     session_id: z.string(),
@@ -46,7 +61,7 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
     const toolInput = parsed.data.tool_input ? JSON.stringify(parsed.data.tool_input) : undefined;
 
     // Look up session to get machine_id
-    const session = db.prepare('SELECT machine_id FROM sessions WHERE id = ?').get(sessionId) as
+    const session = getSessionMachineStmt.get(sessionId) as
       | { machine_id: string }
       | undefined;
     if (!session) return reply.code(404).send({ error: 'Session not found' });
@@ -175,11 +190,7 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
     // Create policy rule if "remember" was checked
     if (body.rememberAsRule && body.decision === 'approve' && approval.tool_name) {
       const ruleId = randomUUID();
-      db.prepare(`
-        INSERT INTO approval_policy_rules
-        (id, name, enabled, priority, match_tool_name, action, created_from_approval_id)
-        VALUES (?, ?, 1, 45, ?, 'auto_approve', ?)
-      `).run(
+      insertRememberRuleStmt.run(
         ruleId,
         `Auto-approve ${approval.tool_name} (from approval)`,
         JSON.stringify([approval.tool_name]),
@@ -213,7 +224,7 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
   // ── Policy Rules API ──────────────────────────────────────
 
   app.get('/api/approval-policies', async () => {
-    return db.prepare('SELECT * FROM approval_policy_rules ORDER BY priority ASC').all();
+    return listPolicyRulesStmt.all();
   });
 
   const createRuleBody = z.object({
@@ -230,12 +241,7 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
     const body = createRuleBody.parse(req.body);
     const id = randomUUID();
 
-    db.prepare(`
-      INSERT INTO approval_policy_rules
-      (id, name, description, enabled, priority, match_tool_name, match_bash_command_pattern,
-       match_risk_level, action)
-      VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
-    `).run(
+    insertPolicyRuleStmt.run(
       id,
       body.name,
       body.description ?? null,
@@ -250,7 +256,7 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
   });
 
   app.delete<{ Params: { id: string } }>('/api/approval-policies/:id', async (req, reply) => {
-    const result = db.prepare('DELETE FROM approval_policy_rules WHERE id = ?').run(req.params.id);
+    const result = deletePolicyRuleStmt.run(req.params.id);
     if (result.changes === 0) return reply.code(404).send({ error: 'Rule not found' });
     return { deleted: true };
   });

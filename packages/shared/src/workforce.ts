@@ -16,7 +16,7 @@ export const repoRecordSchema = z.object({
   setup_commands: z.array(z.string()).optional(),
   pre_flight_commands: z.array(z.string()).optional(),
   post_flight_commands: z.array(z.string()).optional(),
-  env_vars: z.record(z.string()).optional(),
+  env_vars: z.record(z.string(), z.string()).optional(),
   tags: z.array(z.string()).optional(),
   last_synced_at: z.number().optional(),
   created_at: z.number(),
@@ -128,7 +128,7 @@ export const hubContainerCreateMsg = z.object({
   prompt: z.string(),
   setupCommands: z.array(z.string()).default([]),
   preFlightCommands: z.array(z.string()).default([]),
-  env: z.record(z.string()).default({}),
+  env: z.record(z.string(), z.string()).default({}),
 });
 
 export const hubContainerStopMsg = z.object({

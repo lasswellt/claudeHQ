@@ -2,6 +2,19 @@ import * as pty from 'node-pty';
 import type { OutputChunk } from '@chq/shared';
 import { EventEmitter } from 'node:events';
 
+const MAX_INPUT_LENGTH = 4096;
+
+// Strips OSC (\x1b]...\x07 or \x1b]...\x1b\), DCS (\x1bP...\x1b\), and
+// APC (\x1b_...\x1b\) sequences. These are vectors for title injection and
+// terminal state manipulation. Normal text, CSI sequences (arrow keys, etc.),
+// and basic control characters are preserved.
+const DANGEROUS_SEQUENCES = /\x1b[\]P_][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+
+function sanitizeInput(data: string): string {
+  const truncated = data.length > MAX_INPUT_LENGTH ? data.slice(0, MAX_INPUT_LENGTH) : data;
+  return truncated.replace(DANGEROUS_SEQUENCES, '');
+}
+
 export type SessionState = 'spawning' | 'running' | 'completed' | 'failed';
 
 export interface PtySessionOptions {
@@ -96,7 +109,10 @@ export class PtySession extends EventEmitter {
     if (this._state !== 'running' || !this.ptyProcess) {
       throw new Error(`Cannot write to session ${this.id} in state ${this._state}`);
     }
-    this.ptyProcess.write(data);
+    const sanitized = sanitizeInput(data);
+    if (sanitized.length > 0) {
+      this.ptyProcess.write(sanitized);
+    }
   }
 
   resize(cols: number, rows: number): void {

@@ -19,7 +19,7 @@ export type AgentConfig = z.infer<typeof agentConfigSchema>;
 // ── Hub Configuration ───────────────────────────────────────────
 export const hubConfigSchema = z.object({
   port: z.number().default(7700),
-  host: z.string().default('0.0.0.0'),
+  host: z.string().default('127.0.0.1'),
   databasePath: z.string().default('./data/db/chq.db'),
   recordingsPath: z.string().default('./data/recordings'),
   dashboardStaticPath: z.string().optional(),

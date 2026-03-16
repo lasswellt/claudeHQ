@@ -5,7 +5,7 @@ describe('HubConfig schema', () => {
   it('applies defaults for all optional fields', () => {
     const config = hubConfigSchema.parse({});
     expect(config.port).toBe(7700);
-    expect(config.host).toBe('0.0.0.0');
+    expect(config.host).toBe('127.0.0.1');
     expect(config.logLevel).toBe('info');
     expect(config.databasePath).toBe('./data/db/chq.db');
     expect(config.recordingsPath).toBe('./data/recordings');

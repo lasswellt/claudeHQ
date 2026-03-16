@@ -1,5 +1,7 @@
 import Docker from 'dockerode';
 import { EventEmitter } from 'node:events';
+import { realpathSync } from 'node:fs';
+import path from 'node:path';
 import pino from 'pino';
 import type { ContainerSecurityConfig } from './container-security.js';
 
@@ -70,11 +72,19 @@ export class ContainerPool extends EventEmitter {
       throw new Error(`Container pool at capacity (${this.activeCount}/${this.maxContainers})`);
     }
 
-    // Validate workspace path — prevent mounting sensitive host directories
+    // Validate workspace path — prevent mounting sensitive host directories.
+    // Use realpathSync to resolve symlinks before checking, so a symlink at an
+    // allowed path pointing into /etc (or similar) cannot bypass this check.
     const forbidden = ['/etc', '/var/run', '/root', '/proc', '/sys', '/dev'];
-    const normalizedPath = opts.workspacePath.replace(/\/+$/, '');
-    if (forbidden.some((f) => normalizedPath === f || normalizedPath.startsWith(f + '/'))) {
-      throw new Error(`Workspace path "${opts.workspacePath}" is forbidden — cannot mount system directories`);
+    let realWorkspacePath: string;
+    try {
+      realWorkspacePath = realpathSync(opts.workspacePath);
+    } catch {
+      // Path does not exist yet (will be created) — normalise without resolving
+      realWorkspacePath = path.resolve(opts.workspacePath);
+    }
+    if (forbidden.some((f) => realWorkspacePath === f || realWorkspacePath.startsWith(f + '/'))) {
+      throw new Error(`Workspace path "${realWorkspacePath}" resolves to a forbidden location`);
     }
 
     const claudeArgs = [

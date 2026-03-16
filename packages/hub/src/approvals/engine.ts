@@ -1,6 +1,26 @@
 import type Database from 'better-sqlite3';
 import type { ApprovalPolicyRule } from '@chq/shared';
 
+// Prepared statement cache keyed by Database instance — compiled once per db
+const listRulesStmtCache = new WeakMap<Database.Database, Database.Statement>();
+const countRulesStmtCache = new WeakMap<Database.Database, Database.Statement>();
+
+function getListRulesStmt(db: Database.Database): Database.Statement {
+  const cached = listRulesStmtCache.get(db);
+  if (cached) return cached;
+  const stmt = db.prepare('SELECT * FROM approval_policy_rules WHERE enabled = 1 ORDER BY priority ASC');
+  listRulesStmtCache.set(db, stmt);
+  return stmt;
+}
+
+function getCountRulesStmt(db: Database.Database): Database.Statement {
+  const cached = countRulesStmtCache.get(db);
+  if (cached) return cached;
+  const stmt = db.prepare('SELECT COUNT(*) as c FROM approval_policy_rules');
+  countRulesStmtCache.set(db, stmt);
+  return stmt;
+}
+
 export interface PolicyResult {
   action: 'auto_approve' | 'auto_deny' | 'require_approval';
   ruleId: string | null;
@@ -17,9 +37,7 @@ export function evaluatePolicy(
     sessionTags?: string[];
   },
 ): PolicyResult {
-  const rules = db
-    .prepare('SELECT * FROM approval_policy_rules WHERE enabled = 1 ORDER BY priority ASC')
-    .all() as Record<string, unknown>[];
+  const rules = getListRulesStmt(db).all() as Record<string, unknown>[];
 
   for (const row of rules) {
     if (matchesRule(row, request)) {
@@ -140,9 +158,7 @@ export const DEFAULT_RULES: Omit<ApprovalPolicyRule, 'created_at'>[] = [
 ];
 
 export function seedDefaultRules(db: Database.Database): void {
-  const count = db.prepare('SELECT COUNT(*) as c FROM approval_policy_rules').get() as {
-    c: number;
-  };
+  const count = getCountRulesStmt(db).get() as { c: number };
   if (count.c > 0) return; // Already seeded
 
   const stmt = db.prepare(`

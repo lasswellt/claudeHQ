@@ -3,13 +3,37 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import type { GitHubClient } from '../github/client.js';
-import { Webhooks } from '@octokit/webhooks';
+
 
 export async function githubRoutes(
   app: FastifyInstance,
   db: Database.Database,
   githubClient: GitHubClient,
 ): Promise<void> {
+  // Prepared statements — hoisted to plugin scope so they are compiled once at registration
+  const listPrsStmt = db.prepare('SELECT * FROM pull_requests ORDER BY created_at DESC LIMIT 50');
+  const getPrByIdStmt = db.prepare('SELECT * FROM pull_requests WHERE id = ?');
+  const getJobByIdStmt = db.prepare('SELECT * FROM jobs WHERE id = ?');
+  const getRepoByIdStmt = db.prepare('SELECT * FROM repos WHERE id = ?');
+  const insertPrStmt = db.prepare(`
+    INSERT INTO pull_requests (id, job_id, repo_id, github_pr_number, github_pr_url, head_branch, base_branch, title, additions, deletions, changed_files)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const updateJobPrStmt = db.prepare('UPDATE jobs SET pr_number = ?, pr_url = ? WHERE id = ?');
+  const setPrMergedStmt = db.prepare(
+    "UPDATE pull_requests SET status = 'merged', updated_at = unixepoch() WHERE github_pr_number = ?",
+  );
+  const setPrClosedStmt = db.prepare(
+    "UPDATE pull_requests SET status = 'closed', updated_at = unixepoch() WHERE github_pr_number = ?",
+  );
+  const updatePrCiStatusStmt = db.prepare(
+    "UPDATE pull_requests SET ci_status = ?, updated_at = unixepoch() WHERE head_branch = ? AND status = 'open'",
+  );
+  const updatePrReviewStatusStmt = db.prepare(
+    'UPDATE pull_requests SET review_status = ?, updated_at = unixepoch() WHERE github_pr_number = ?',
+  );
+  const updateJobIssueLinkStmt = db.prepare('UPDATE jobs SET github_issue_number = ? WHERE id = ?');
+
   // ── Setup / Config ──────────────────────────────────────────
 
   // Get GitHub config status (no secrets exposed)
@@ -101,21 +125,21 @@ export async function githubRoutes(
   // ── Pull Requests ───────────────────────────────────────────
 
   app.get('/api/prs', async () => {
-    return db.prepare('SELECT * FROM pull_requests ORDER BY created_at DESC LIMIT 50').all();
+    return listPrsStmt.all();
   });
 
   app.get<{ Params: { id: string } }>('/api/prs/:id', async (req, reply) => {
-    const pr = db.prepare('SELECT * FROM pull_requests WHERE id = ?').get(req.params.id);
+    const pr = getPrByIdStmt.get(req.params.id);
     if (!pr) return reply.code(404).send({ error: 'PR not found' });
     return pr;
   });
 
   // Create PR for a job
   app.post<{ Params: { jobId: string } }>('/api/jobs/:jobId/create-pr', async (req, reply) => {
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.jobId) as Record<string, unknown> | undefined;
+    const job = getJobByIdStmt.get(req.params.jobId) as Record<string, unknown> | undefined;
     if (!job) return reply.code(404).send({ error: 'Job not found' });
 
-    const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(job.repo_id as string) as Record<string, unknown> | undefined;
+    const repo = getRepoByIdStmt.get(job.repo_id as string) as Record<string, unknown> | undefined;
     if (!repo) return reply.code(404).send({ error: 'Repo not found' });
 
     if (!githubClient.isConfigured) {
@@ -151,12 +175,10 @@ export async function githubRoutes(
     }
 
     const prId = randomUUID();
-    db.prepare(`
-      INSERT INTO pull_requests (id, job_id, repo_id, github_pr_number, github_pr_url, head_branch, base_branch, title, additions, deletions, changed_files)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(prId, job.id, repo.id, prResult.number, prResult.url, branch, base, job.title, prResult.additions, prResult.deletions, prResult.changedFiles);
-
-    db.prepare('UPDATE jobs SET pr_number = ?, pr_url = ? WHERE id = ?').run(prResult.number, prResult.url, job.id);
+    db.transaction(() => {
+      insertPrStmt.run(prId, job.id, repo.id, prResult.number, prResult.url, branch, base, job.title, prResult.additions, prResult.deletions, prResult.changedFiles);
+      updateJobPrStmt.run(prResult.number, prResult.url, job.id);
+    })();
 
     return { id: prId, ...prResult };
   });
@@ -167,23 +189,31 @@ export async function githubRoutes(
     const config = githubClient.getConfig();
     const signature = req.headers['x-hub-signature-256'] as string | undefined;
 
-    // Verify webhook signature if secret is configured
-    if (config?.webhookSecret) {
-      if (!signature) {
-        app.log.warn('GitHub webhook missing signature header');
-        return reply.code(401).send({ error: 'Missing signature' });
-      }
-      const crypto = await import('node:crypto');
-      const expected = 'sha256=' + crypto.createHmac('sha256', config.webhookSecret)
-        .update(JSON.stringify(req.body))
-        .digest('hex');
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
-        app.log.warn('GitHub webhook signature mismatch');
-        return reply.code(401).send({ error: 'Invalid signature' });
-      }
-    } else {
-      // No secret configured — reject in production, warn in dev
-      app.log.warn('GitHub webhook received without secret verification — configure a webhook secret');
+    // Reject immediately when no webhook secret is configured
+    if (!config?.webhookSecret) {
+      app.log.warn('GitHub webhook received but no webhook secret is configured');
+      return reply.code(403).send({ error: 'Webhook secret not configured' });
+    }
+
+    if (!signature) {
+      app.log.warn('GitHub webhook missing signature header');
+      return reply.code(401).send({ error: 'Missing signature' });
+    }
+
+    const crypto = await import('node:crypto');
+    const rawBody = (req as unknown as Record<string, unknown>).rawBody as Buffer | undefined;
+    if (!rawBody) {
+      app.log.warn('GitHub webhook missing raw body — cannot verify signature');
+      return reply.code(400).send({ error: 'Unable to verify signature' });
+    }
+    const expected = 'sha256=' + crypto.createHmac('sha256', config.webhookSecret)
+      .update(rawBody)
+      .digest('hex');
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      app.log.warn('GitHub webhook signature mismatch');
+      return reply.code(401).send({ error: 'Invalid signature' });
     }
 
     const event = req.headers['x-github-event'] as string;
@@ -198,9 +228,9 @@ export async function githubRoutes(
         const prNumber = pr?.number as number;
 
         if (action === 'closed' && pr?.merged) {
-          db.prepare("UPDATE pull_requests SET status = 'merged', updated_at = unixepoch() WHERE github_pr_number = ?").run(prNumber);
+          setPrMergedStmt.run(prNumber);
         } else if (action === 'closed') {
-          db.prepare("UPDATE pull_requests SET status = 'closed', updated_at = unixepoch() WHERE github_pr_number = ?").run(prNumber);
+          setPrClosedStmt.run(prNumber);
         }
         break;
       }
@@ -212,9 +242,7 @@ export async function githubRoutes(
         if (conclusion && headBranch) {
           const ciStatus = conclusion === 'success' ? 'passing' : 'failing';
           // Only update PRs that match the specific branch this check ran on
-          db.prepare(
-            "UPDATE pull_requests SET ci_status = ?, updated_at = unixepoch() WHERE head_branch = ? AND status = 'open'",
-          ).run(ciStatus, headBranch);
+          updatePrCiStatusStmt.run(ciStatus, headBranch);
         }
         break;
       }
@@ -224,7 +252,7 @@ export async function githubRoutes(
         const prNumber = (payload.pull_request as Record<string, unknown>)?.number as number;
 
         const reviewStatus = reviewState === 'approved' ? 'approved' : reviewState === 'changes_requested' ? 'changes_requested' : 'reviewed';
-        db.prepare("UPDATE pull_requests SET review_status = ?, updated_at = unixepoch() WHERE github_pr_number = ?").run(reviewStatus, prNumber);
+        updatePrReviewStatusStmt.run(reviewStatus, prNumber);
         break;
       }
     }
@@ -236,13 +264,13 @@ export async function githubRoutes(
 
   app.post<{ Params: { jobId: string } }>('/api/jobs/:jobId/link-issue', async (req, reply) => {
     const { issueNumber } = z.object({ issueNumber: z.number() }).parse(req.body);
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.jobId) as Record<string, unknown> | undefined;
+    const job = getJobByIdStmt.get(req.params.jobId) as Record<string, unknown> | undefined;
     if (!job) return reply.code(404).send({ error: 'Job not found' });
 
-    const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(job.repo_id as string) as Record<string, unknown> | undefined;
+    const repo = getRepoByIdStmt.get(job.repo_id as string) as Record<string, unknown> | undefined;
     if (!repo) return reply.code(404).send({ error: 'Repo not found' });
 
-    db.prepare('UPDATE jobs SET github_issue_number = ? WHERE id = ?').run(issueNumber, job.id);
+    updateJobIssueLinkStmt.run(issueNumber, job.id);
 
     await githubClient.commentOnIssue(
       repo.owner as string,

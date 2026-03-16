@@ -253,17 +253,19 @@ export function createDAL(db: Database.Database) {
       flags?: string[];
       priority?: number;
     }): void {
-      const maxPos = getMaxPositionStmt.get(task.machineId) as { maxPos: number };
-      insertQueueTaskStmt.run(
-        task.id,
-        task.machineId,
-        task.prompt,
-        task.cwd,
-        task.flags ? JSON.stringify(task.flags) : null,
-        task.priority ?? 100,
-        maxPos.maxPos + 1,
-        Math.floor(Date.now() / 1000),
-      );
+      db.transaction(() => {
+        const maxPos = getMaxPositionStmt.get(task.machineId) as { maxPos: number };
+        insertQueueTaskStmt.run(
+          task.id,
+          task.machineId,
+          task.prompt,
+          task.cwd,
+          task.flags ? JSON.stringify(task.flags) : null,
+          task.priority ?? 100,
+          maxPos.maxPos + 1,
+          Math.floor(Date.now() / 1000),
+        );
+      })();
     },
 
     removeQueueTask(id: string): void {

@@ -17,6 +17,17 @@ export async function jobRoutes(
 
   const getJobStmt = db.prepare('SELECT * FROM jobs WHERE id = ?');
   const updateJobStatusStmt = db.prepare('UPDATE jobs SET status = ? WHERE id = ?');
+  const getSessionsByJobStmt = db.prepare('SELECT * FROM sessions WHERE job_id = ?');
+  const getWorkspaceByIdStmt = db.prepare('SELECT * FROM workspaces WHERE id = ?');
+  const getRepoByIdStmt = db.prepare('SELECT * FROM repos WHERE id = ?');
+  const insertWorkspaceStmt = db.prepare(`
+    INSERT INTO workspaces (id, repo_id, machine_id, path, branch, status, job_id)
+    VALUES (?, ?, ?, ?, ?, 'creating', ?)
+  `);
+  const updateJobWorkspaceStmt = db.prepare('UPDATE jobs SET workspace_id = ? WHERE id = ?');
+  const getRunningSessionsByJobStmt = db.prepare(
+    "SELECT id FROM sessions WHERE job_id = ? AND status = 'running'",
+  );
 
   // List jobs
   app.get<{ Querystring: { repoId?: string; status?: string } }>('/api/jobs', async (req) => {
@@ -33,9 +44,9 @@ export async function jobRoutes(
     const job = getJobStmt.get(req.params.id) as Record<string, unknown> | undefined;
     if (!job) return reply.code(404).send({ error: 'Job not found' });
 
-    const sessions = db.prepare('SELECT * FROM sessions WHERE job_id = ?').all(req.params.id);
+    const sessions = getSessionsByJobStmt.all(req.params.id);
     const workspace = job.workspace_id
-      ? db.prepare('SELECT * FROM workspaces WHERE id = ?').get(job.workspace_id as string)
+      ? getWorkspaceByIdStmt.get(job.workspace_id as string)
       : null;
 
     return { ...job, sessions, workspace };
@@ -59,7 +70,7 @@ export async function jobRoutes(
     const body = createBody.parse(req.body);
 
     // Verify repo exists
-    const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(body.repoId) as Record<string, unknown> | undefined;
+    const repo = getRepoByIdStmt.get(body.repoId) as Record<string, unknown> | undefined;
     if (!repo) return reply.code(404).send({ error: 'Repo not found' });
 
     // Select machine
@@ -82,16 +93,9 @@ export async function jobRoutes(
 
     // Create workspace
     const workspaceId = randomUUID();
-    const repoUrl = repo.url as string;
-    let setupCommands: string[] = [];
-    try { setupCommands = repo.setup_commands ? (JSON.parse(repo.setup_commands as string) as string[]) : []; } catch { /* malformed JSON */ }
+    insertWorkspaceStmt.run(workspaceId, body.repoId, machineId, `/workspaces/${id}`, body.branch ?? 'main', id);
 
-    db.prepare(`
-      INSERT INTO workspaces (id, repo_id, machine_id, path, branch, status, job_id)
-      VALUES (?, ?, ?, ?, ?, 'creating', ?)
-    `).run(workspaceId, body.repoId, machineId, `/workspaces/${id}`, body.branch ?? 'main', id);
-
-    db.prepare('UPDATE jobs SET workspace_id = ? WHERE id = ?').run(workspaceId, id);
+    updateJobWorkspaceStmt.run(workspaceId, id);
 
     // Send workspace provision command to agent
     agentHandler.sendToAgent(machineId, {
@@ -118,9 +122,7 @@ export async function jobRoutes(
     const machineId = job.machine_id as string | null;
     if (machineId) {
       // Find running sessions for this job
-      const sessions = db.prepare(
-        "SELECT id FROM sessions WHERE job_id = ? AND status = 'running'",
-      ).all(req.params.id) as Array<{ id: string }>;
+      const sessions = getRunningSessionsByJobStmt.all(req.params.id) as Array<{ id: string }>;
 
       for (const session of sessions) {
         agentHandler.sendToAgent(machineId, {
@@ -156,7 +158,7 @@ export async function jobRoutes(
     // Use transaction for atomicity — all jobs created or none
     const batchInsert = db.transaction(() => {
       for (const repoId of body.repoIds) {
-        const repo = db.prepare('SELECT * FROM repos WHERE id = ?').get(repoId) as Record<string, unknown> | undefined;
+        const repo = getRepoByIdStmt.get(repoId) as Record<string, unknown> | undefined;
         if (!repo) continue;
 
         const id = randomUUID();

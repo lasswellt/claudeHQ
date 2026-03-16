@@ -3,10 +3,6 @@ import type { FastifyInstance } from 'fastify';
 import { dashboardToHubSchema } from '@chq/shared';
 import type { DAL } from '../dal.js';
 
-interface Subscription {
-  resource: 'session' | 'machine' | 'queue';
-  id?: string;
-}
 
 interface ConnectedDashboard {
   socket: WebSocket;

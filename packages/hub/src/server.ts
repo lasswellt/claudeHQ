@@ -81,6 +81,17 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
     dashboardHandler.handleConnection(socket);
   });
 
+  // Capture raw request body for webhook signature verification.
+  // This must be added before routes so the hook runs on /hooks/github.
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    (req as unknown as Record<string, unknown>).rawBody = body;
+    try {
+      done(null, JSON.parse(body.toString('utf-8')));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
   // REST routes
   await machineRoutes(app, dal);
   await sessionRoutes(app, dal, agentHandler);
