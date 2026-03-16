@@ -35,7 +35,7 @@ describe('AgentConfig schema', () => {
     });
     expect(config.maxConcurrentSessions).toBe(2);
     expect(config.claudeBinary).toBe('claude');
-    expect(config.defaultFlags).toEqual(['--dangerously-skip-permissions']);
+    expect(config.defaultFlags).toEqual([]);
   });
 
   it('rejects invalid hubUrl', () => {

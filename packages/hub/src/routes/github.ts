@@ -165,9 +165,25 @@ export async function githubRoutes(
 
   app.post('/hooks/github', async (req, reply) => {
     const config = githubClient.getConfig();
-    if (!config?.webhookSecret) {
-      // No signature verification if no secret configured
-      app.log.warn('GitHub webhook received without secret verification');
+    const signature = req.headers['x-hub-signature-256'] as string | undefined;
+
+    // Verify webhook signature if secret is configured
+    if (config?.webhookSecret) {
+      if (!signature) {
+        app.log.warn('GitHub webhook missing signature header');
+        return reply.code(401).send({ error: 'Missing signature' });
+      }
+      const crypto = await import('node:crypto');
+      const expected = 'sha256=' + crypto.createHmac('sha256', config.webhookSecret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+        app.log.warn('GitHub webhook signature mismatch');
+        return reply.code(401).send({ error: 'Invalid signature' });
+      }
+    } else {
+      // No secret configured — reject in production, warn in dev
+      app.log.warn('GitHub webhook received without secret verification — configure a webhook secret');
     }
 
     const event = req.headers['x-github-event'] as string;

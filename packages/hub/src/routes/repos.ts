@@ -60,15 +60,25 @@ export async function repoRoutes(app: FastifyInstance, db: Database.Database): P
     if (!existing) return reply.code(404).send({ error: 'Repo not found' });
 
     const body = createBody.partial().parse(req.body);
+
+    // Whitelist of allowed columns to prevent SQL injection via dynamic column names
+    const ALLOWED_COLUMNS: Record<string, string> = {
+      url: 'url', name: 'name', owner: 'owner', default_branch: 'default_branch',
+      auth_method: 'auth_method', preferred_machine_id: 'preferred_machine_id',
+      dependency_manager: 'dependency_manager', node_version: 'node_version',
+      setup_commands: 'setup_commands', pre_flight_commands: 'pre_flight_commands',
+      post_flight_commands: 'post_flight_commands', tags: 'tags',
+    };
+
     const sets: string[] = [];
     const params: unknown[] = [];
 
     for (const [key, value] of Object.entries(body)) {
-      if (value !== undefined) {
-        const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        sets.push(`${col} = ?`);
-        params.push(Array.isArray(value) ? JSON.stringify(value) : value);
-      }
+      if (value === undefined) continue;
+      const col = ALLOWED_COLUMNS[key];
+      if (!col) continue; // Skip unknown keys
+      sets.push(`${col} = ?`);
+      params.push(Array.isArray(value) ? JSON.stringify(value) : value);
     }
 
     if (sets.length > 0) {

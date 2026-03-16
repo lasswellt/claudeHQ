@@ -94,15 +94,19 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
       now + timeoutSeconds,
     );
 
-    // Broadcast to dashboard
-    app.log.info({ approvalId, sessionId, toolName, riskLevel }, 'Approval requested');
+    app.log.info({ approvalId, sessionId, toolName, riskLevel }, 'Approval requested — denying pending human review');
 
-    // For now, auto-deny (real implementation would hold the HTTP response)
-    // TODO: implement long-poll waiting for decision
+    // Default-deny for unresolved approvals. The safe behavior is to deny
+    // tool calls that require human approval until the approval system
+    // implements long-poll or async decision delivery.
+    // Users can configure auto_approve rules for trusted tools via the policy engine.
     return {
       hookSpecificOutput: {
         hookEventName: 'PermissionRequest',
-        decision: { behavior: 'allow' }, // Default allow until long-poll is implemented
+        decision: {
+          behavior: 'deny',
+          message: `Requires approval (risk: ${riskLevel}). Approve via Claude HQ dashboard.`,
+        },
       },
     };
   });

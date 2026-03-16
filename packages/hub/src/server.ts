@@ -21,6 +21,7 @@ import { githubRoutes } from './routes/github.js';
 import { GitHubClient } from './github/client.js';
 import { costRoutes } from './routes/costs.js';
 import { scheduledTaskRoutes } from './routes/scheduled-tasks.js';
+import { DashboardHandler } from './ws/dashboard-handler.js';
 
 export async function createServer(config: HubConfig): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({
@@ -44,15 +45,10 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   // Agent handler
   const agentHandler = new AgentHandler(app, dal, config.recordingsPath);
 
-  // Dashboard subscribers
-  const dashboardSockets = new Set<import('ws').WebSocket>();
+  // Dashboard handler (with subscribe/unsubscribe support)
+  const dashboardHandler = new DashboardHandler(app, dal);
   agentHandler.setDashboardBroadcast((msg) => {
-    const data = JSON.stringify(msg);
-    for (const socket of dashboardSockets) {
-      if (socket.readyState === 1) {
-        socket.send(data);
-      }
-    }
+    dashboardHandler.broadcast(msg);
   });
 
   // WebSocket support
@@ -80,15 +76,9 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
     agentHandler.handleConnection(socket);
   });
 
-  // Dashboard WebSocket
+  // Dashboard WebSocket (with subscribe/unsubscribe message handling)
   app.get('/ws/dashboard', { websocket: true }, (socket) => {
-    dashboardSockets.add(socket);
-    app.log.info('Dashboard connected');
-
-    socket.on('close', () => {
-      dashboardSockets.delete(socket);
-      app.log.info('Dashboard disconnected');
-    });
+    dashboardHandler.handleConnection(socket);
   });
 
   // REST routes

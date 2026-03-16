@@ -7,7 +7,7 @@ export const agentConfigSchema = z.object({
   displayName: z.string().optional(),
   hubUrl: z.string().url(),
   claudeBinary: z.string().default('claude'),
-  defaultFlags: z.array(z.string()).default(['--dangerously-skip-permissions']),
+  defaultFlags: z.array(z.string()).default([]),
   defaultCwd: z.string().optional(),
   maxConcurrentSessions: z.number().min(1).max(10).default(2),
   recordingChunkIntervalMs: z.number().default(100),
