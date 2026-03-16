@@ -1,0 +1,27 @@
+services:
+  hub:
+    build:
+      context: .
+      dockerfile: Dockerfile.hub
+    ports:
+      - "${CHQ_HUB_PORT:-7700}:7700"
+    environment:
+      - CHQ_HUB_PORT=7700
+      - CHQ_HUB_DATABASEPATH=/app/data/db/chq.db
+      - CHQ_HUB_RECORDINGSPATH=/app/data/recordings
+      - CHQ_HUB_LOGLEVEL=${CHQ_HUB_LOGLEVEL:-info}
+    volumes:
+      - ./data/db:/app/data/db
+      - ./data/recordings:/app/data/recordings
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:7700/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

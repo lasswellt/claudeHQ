@@ -1,0 +1,26 @@
+{
+  "name": "@chq/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nuxt generate",
+    "type-check": "nuxt typecheck",
+    "dev": "nuxt dev",
+    "clean": "rm -rf .output .nuxt"
+  },
+  "dependencies": {
+    "@chq/shared": "workspace:*",
+    "vuetify": "^3.8.0",
+    "@mdi/font": "^7.4.0",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/addon-serialize": "^0.13.0",
+    "pinia": "^3.0.0"
+  },
+  "devDependencies": {
+    "nuxt": "^3.16.0",
+    "vite-plugin-vuetify": "^2.1.0",
+    "sass": "^1.86.0"
+  }
+}

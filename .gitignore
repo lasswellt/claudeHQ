@@ -1,10 +1,20 @@
 # Dependencies
 node_modules/
 
-# Environment
+# Build outputs
+dist/
+.output/
+.nuxt/
+.turbo/
+
+# Environment & Secrets
 .env
 .env.local
 .env.*.local
+secrets/
+
+# Data (Docker volumes)
+data/
 
 # Firebase
 firebase-debug.log
@@ -19,3 +29,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Logs
+*.log

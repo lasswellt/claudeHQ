@@ -1,0 +1,69 @@
+# syntax=docker/dockerfile:1
+
+# ── Stage 0: Base ──────────────────────────────────────────────
+FROM node:22-bookworm-slim AS base
+RUN corepack enable
+WORKDIR /app
+
+# ── Stage 1: Prune monorepo for hub ───────────────────────────
+FROM base AS pruner
+RUN npm i -g turbo@^2
+COPY . .
+RUN turbo prune @chq/hub --docker
+
+# ── Stage 2: Install dependencies ─────────────────────────────
+FROM base AS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ── Stage 3: Build ─────────────────────────────────────────────
+FROM deps AS builder
+COPY --from=pruner /app/out/full/ .
+COPY turbo.json turbo.json
+RUN pnpm turbo build --filter=@chq/hub...
+
+# ── Stage 4: Production dependencies ──────────────────────────
+FROM base AS prod-deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+
+# ── Stage 5: Runtime ───────────────────────────────────────────
+FROM node:22-bookworm-slim AS runtime
+RUN corepack enable
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=384"
+
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules 2>/dev/null || true
+COPY --from=prod-deps /app/packages/hub/node_modules ./packages/hub/node_modules 2>/dev/null || true
+
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /app/packages/hub/dist ./packages/hub/dist
+COPY --from=builder /app/packages/hub/package.json ./packages/hub/package.json
+COPY --from=builder /app/package.json ./package.json
+
+RUN mkdir -p /app/data/db /app/data/recordings
+
+EXPOSE 7700
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=15s \
+  CMD node -e "fetch('http://localhost:7700/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "packages/hub/dist/index.js"]

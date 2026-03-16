@@ -1,0 +1,56 @@
+[
+  {
+    "slug": "docs-audit",
+    "title": "Docs Audit: Architecture Documents Analysis & Validation",
+    "date": "2026-03-15",
+    "tags": ["architecture", "validation", "docs", "libraries", "hooks", "agent-sdk"],
+    "packages": ["agent", "hub", "dashboard", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-15_docs-audit.md"
+  },
+  {
+    "slug": "remote-console-patterns",
+    "title": "Remote Console Patterns: Portainer, Kubernetes & Beyond for Claude Code Instance Management",
+    "date": "2026-03-15",
+    "tags": ["architecture", "ux", "portainer", "kubernetes", "dashboard", "queue", "scheduling", "templates"],
+    "packages": ["hub", "dashboard", "shared", "agent"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-15_remote-console-patterns.md"
+  },
+  {
+    "slug": "workforce-management-platform",
+    "title": "Workforce Management Platform: Claude Code Agent Orchestration Across Codebases",
+    "date": "2026-03-15",
+    "tags": ["architecture", "workforce", "docker", "wsl2", "git", "github", "sdk", "cli", "scheduling", "repos"],
+    "packages": ["agent", "hub", "dashboard", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-15_workforce-management-platform.md"
+  },
+  {
+    "slug": "approval-request-handling",
+    "title": "Approval Request Handling: Permission, Input & Policy Architecture",
+    "date": "2026-03-15",
+    "tags": ["architecture", "permissions", "approvals", "hooks", "policy", "notifications", "ux", "dashboard"],
+    "packages": ["agent", "hub", "dashboard", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-15_approval-request-handling.md"
+  },
+  {
+    "slug": "github-docker-costs-rivet",
+    "title": "Implementation Deep Dives: GitHub App, Docker Spawn, Cost Estimation & Rivet Evaluation",
+    "date": "2026-03-15",
+    "tags": ["github", "docker", "costs", "pricing", "tokens", "rivet", "sdk", "spawn", "budget"],
+    "packages": ["hub", "agent", "dashboard", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-15_github-docker-costs-rivet.md"
+  },
+  {
+    "slug": "self-hosted-docker-deployment",
+    "title": "Self-Hosted Docker Deployment: Complete Docker Compose for Claude HQ",
+    "date": "2026-03-15",
+    "tags": ["docker", "deployment", "docker-compose", "tailscale", "sqlite", "caddy", "nginx", "monorepo", "dockerfile"],
+    "packages": ["hub", "dashboard", "agent", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-03-15_self-hosted-docker-deployment.md"
+  }
+]

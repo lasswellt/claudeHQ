@@ -1,0 +1,27 @@
+{
+  "name": "@chq/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "chq": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@chq/shared": "workspace:*",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.0",
+    "commander": "^13.1.0",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0"
+  }
+}

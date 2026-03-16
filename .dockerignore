@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/.nuxt
+**/.output
+**/dist
+**/.turbo
+.git
+.github
+.vscode
+.claude
+docs
+*.md
+.env*
+secrets/
+data/
+firebase-debug.log

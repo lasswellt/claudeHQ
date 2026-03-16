@@ -1,0 +1,63 @@
+import { z } from 'zod';
+import { readFileSync } from 'node:fs';
+
+// ── Agent Configuration ─────────────────────────────────────────
+export const agentConfigSchema = z.object({
+  machineId: z.string(),
+  displayName: z.string().optional(),
+  hubUrl: z.string().url(),
+  claudeBinary: z.string().default('claude'),
+  defaultFlags: z.array(z.string()).default(['--dangerously-skip-permissions']),
+  defaultCwd: z.string().optional(),
+  maxConcurrentSessions: z.number().min(1).max(10).default(2),
+  recordingChunkIntervalMs: z.number().default(100),
+  recordingUploadIntervalMs: z.number().default(5000),
+  recordingRetentionDays: z.number().default(7),
+});
+export type AgentConfig = z.infer<typeof agentConfigSchema>;
+
+// ── Hub Configuration ───────────────────────────────────────────
+export const hubConfigSchema = z.object({
+  port: z.number().default(7700),
+  host: z.string().default('0.0.0.0'),
+  databasePath: z.string().default('./data/db/chq.db'),
+  recordingsPath: z.string().default('./data/recordings'),
+  dashboardStaticPath: z.string().optional(),
+  logLevel: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+});
+export type HubConfig = z.infer<typeof hubConfigSchema>;
+
+// ── Config loader ───────────────────────────────────────────────
+export function loadConfig<S extends z.ZodTypeAny>(
+  schema: S,
+  filePath?: string,
+  envPrefix?: string,
+): z.output<S> {
+  let fileData: Record<string, unknown> = {};
+
+  if (filePath) {
+    try {
+      const raw = readFileSync(filePath, 'utf-8');
+      fileData = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      // File not found or invalid — proceed with env/defaults only
+    }
+  }
+
+  // Overlay environment variables if prefix is provided
+  if (envPrefix) {
+    for (const [key, value] of Object.entries(process.env)) {
+      if (key.startsWith(envPrefix) && value !== undefined) {
+        const configKey = key
+          .slice(envPrefix.length)
+          .toLowerCase()
+          .replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+        // Attempt numeric coercion
+        const numVal = Number(value);
+        fileData[configKey] = isNaN(numVal) ? value : numVal;
+      }
+    }
+  }
+
+  return schema.parse(fileData);
+}
