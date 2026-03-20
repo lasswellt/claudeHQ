@@ -8,9 +8,9 @@ services:
     environment:
       - CHQ_HUB_PORT=7700
       - CHQ_HUB_HOST=0.0.0.0
-      - CHQ_HUB_DATABASEPATH=/app/data/db/chq.db
-      - CHQ_HUB_RECORDINGSPATH=/app/data/recordings
-      - CHQ_HUB_DASHBOARDSTATICPATH=/app/dashboard-static
+      - CHQ_HUB_DATABASE_PATH=/app/data/db/chq.db
+      - CHQ_HUB_RECORDINGS_PATH=/app/data/recordings
+      - CHQ_HUB_DASHBOARD_STATIC_PATH=/app/dashboard-static
       - CHQ_HUB_LOGLEVEL=${CHQ_HUB_LOGLEVEL:-info}
       - CHQ_AGENT_TOKEN=${CHQ_AGENT_TOKEN:-}
     volumes:

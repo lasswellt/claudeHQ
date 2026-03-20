@@ -64,7 +64,7 @@ COPY --from=builder /app/package.json ./package.json
 # Bundle dashboard static files into the image
 COPY --from=builder /app/packages/dashboard/.output/public ./dashboard-static
 
-ENV CHQ_HUB_DASHBOARDSTATICPATH=/app/dashboard-static
+ENV CHQ_HUB_DASHBOARD_STATIC_PATH=/app/dashboard-static
 
 RUN mkdir -p /app/data/db /app/data/recordings
 
