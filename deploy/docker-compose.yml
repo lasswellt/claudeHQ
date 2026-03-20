@@ -1,8 +1,6 @@
 services:
   hub:
-    build:
-      context: .
-      dockerfile: Dockerfile.hub
+    image: ghcr.io/lasswellt/claudehq:latest
     ports:
       - "${CHQ_HUB_PORT:-7700}:7700"
     environment:
@@ -14,8 +12,8 @@ services:
       - CHQ_HUB_LOGLEVEL=${CHQ_HUB_LOGLEVEL:-info}
       - CHQ_AGENT_TOKEN=${CHQ_AGENT_TOKEN:-}
     volumes:
-      - ./data/db:/app/data/db
-      - ./data/recordings:/app/data/recordings
+      - chq-db:/app/data/db
+      - chq-recordings:/app/data/recordings
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:7700/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -28,3 +26,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  chq-db:
+  chq-recordings:
