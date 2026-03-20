@@ -50,8 +50,9 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=384"
 
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules 2>/dev/null || true
-COPY --from=prod-deps /app/packages/hub/node_modules ./packages/hub/node_modules 2>/dev/null || true
+RUN --mount=from=prod-deps,source=/app/packages,target=/tmp/pkg \
+    if [ -d /tmp/pkg/shared/node_modules ]; then cp -a /tmp/pkg/shared/node_modules ./packages/shared/node_modules; fi && \
+    if [ -d /tmp/pkg/hub/node_modules ]; then cp -a /tmp/pkg/hub/node_modules ./packages/hub/node_modules; fi
 
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
