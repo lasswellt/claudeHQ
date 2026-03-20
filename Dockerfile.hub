@@ -51,6 +51,7 @@ ENV NODE_OPTIONS="--max-old-space-size=384"
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 RUN --mount=from=prod-deps,source=/app/packages,target=/tmp/pkg \
+    mkdir -p ./packages/shared ./packages/hub && \
     if [ -d /tmp/pkg/shared/node_modules ]; then cp -a /tmp/pkg/shared/node_modules ./packages/shared/node_modules; fi && \
     if [ -d /tmp/pkg/hub/node_modules ]; then cp -a /tmp/pkg/hub/node_modules ./packages/hub/node_modules; fi
 
