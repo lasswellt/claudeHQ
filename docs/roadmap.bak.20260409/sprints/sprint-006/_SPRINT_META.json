@@ -1,0 +1,24 @@
+{
+  "sprintId": "sprint-006",
+  "number": 6,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-023", "EPIC-024", "EPIC-025", "EPIC-026", "EPIC-027"],
+  "storyCount": 8,
+  "totalPoints": 30,
+  "breakdown": {
+    "hub": { "stories": 3, "points": 10 },
+    "agent": { "stories": 1, "points": 3 },
+    "dashboard": { "stories": 4, "points": 17 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "006-001", "title": "Multi-session grid view (2x2/1x4)", "epic": "EPIC-023", "pkg": "dashboard", "points": 5 },
+    { "id": "006-002", "title": "Session search + filter + history", "epic": "EPIC-024", "pkg": "dashboard", "points": 5 },
+    { "id": "006-003", "title": "Cross-machine queue move + bulk ops", "epic": "EPIC-024", "pkg": "hub", "points": 3 },
+    { "id": "006-004", "title": "Agent secret scrubbing", "epic": "EPIC-025", "pkg": "agent", "points": 3 },
+    { "id": "006-005", "title": "Hub recording retention + cleanup", "epic": "EPIC-025", "pkg": "hub", "points": 3 },
+    { "id": "006-006", "title": "Hub health history + machine charts API", "epic": "EPIC-026", "pkg": "hub", "points": 4 },
+    { "id": "006-007", "title": "Dashboard machine health sparklines + charts", "epic": "EPIC-026", "pkg": "dashboard", "points": 4 },
+    { "id": "006-008", "title": "Rich notification integrations (ntfy, browser)", "epic": "EPIC-027", "pkg": "dashboard+hub", "points": 3 }
+  ]
+}

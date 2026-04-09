@@ -1,0 +1,27 @@
+{
+  "sprintId": "sprint-005",
+  "number": 5,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-018", "EPIC-019", "EPIC-020", "EPIC-021", "EPIC-022"],
+  "storyCount": 10,
+  "totalPoints": 38,
+  "breakdown": {
+    "shared": { "stories": 1, "points": 2 },
+    "hub": { "stories": 3, "points": 10 },
+    "agent": { "stories": 2, "points": 6 },
+    "dashboard": { "stories": 4, "points": 20 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "005-001", "title": "Enhanced schema — tags, cost, timeout columns", "epic": "EPIC-022", "pkg": "hub", "points": 3 },
+    { "id": "005-002", "title": "Session replay composable + player page", "epic": "EPIC-018", "pkg": "dashboard", "points": 5 },
+    { "id": "005-003", "title": "Replay timeline scrubber + speed controls", "epic": "EPIC-018", "pkg": "dashboard", "points": 5 },
+    { "id": "005-004", "title": "Agent queue with auto-advance", "epic": "EPIC-019", "pkg": "agent", "points": 3 },
+    { "id": "005-005", "title": "Hub queue CRUD API", "epic": "EPIC-019", "pkg": "hub", "points": 3 },
+    { "id": "005-006", "title": "Dashboard queue manager with drag-to-reorder", "epic": "EPIC-019", "pkg": "dashboard", "points": 5 },
+    { "id": "005-007", "title": "Session resume flow (agent + hub + dashboard)", "epic": "EPIC-020", "pkg": "agent+hub", "points": 3 },
+    { "id": "005-008", "title": "Dashboard resume UI + session chain view", "epic": "EPIC-020", "pkg": "dashboard", "points": 5 },
+    { "id": "005-009", "title": "Session templates — hub CRUD + dashboard gallery", "epic": "EPIC-021", "pkg": "hub+dashboard", "points": 4 },
+    { "id": "005-010", "title": "Shared template types + enhanced session status enum", "epic": "EPIC-021+022", "pkg": "shared", "points": 2 }
+  ]
+}

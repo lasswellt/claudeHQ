@@ -40,6 +40,12 @@ export {
   approvalRequestSchema,
   approvalResponseSchema,
   approvalPolicyRuleSchema,
+  // HI-03 — message schemas for the dashboard
+  agentApprovalRequestMsg,
+  hubApprovalDecisionMsg,
+  approvalRequestedMsg,
+  approvalResolvedMsg,
+  approvalCountMsg,
 } from './approvals.js';
 
 export {
@@ -55,4 +61,18 @@ export {
   repoRecordSchema,
   workspaceRecordSchema,
   jobRecordSchema,
+  // Workforce / container message schemas the dashboard may consume
+  hubWorkspaceProvisionMsg,
+  hubWorkspaceCleanupMsg,
+  agentWorkspaceReadyMsg,
+  agentWorkspaceErrorMsg,
+  hubContainerCreateMsg,
+  hubContainerStopMsg,
+  hubContainerRemoveMsg,
+  agentContainerCreatedMsg,
+  agentContainerStartedMsg,
+  agentContainerStdoutMsg,
+  agentContainerExitedMsg,
+  agentContainerStatsMsg,
+  agentContainerErrorMsg,
 } from './workforce.js';

@@ -6,12 +6,16 @@ export {
   type MachineStatus,
   type QueueTask,
   type NotificationRecord,
+  type SpawnedAgentStatus,
+  type SpawnedAgentRecord,
   sessionRecordSchema,
   sessionStatusSchema,
   machineRecordSchema,
   machineStatusSchema,
   queueTaskSchema,
   notificationRecordSchema,
+  spawnedAgentStatusSchema,
+  spawnedAgentRecordSchema,
 } from './types.js';
 
 // Protocol
@@ -46,6 +50,8 @@ export {
   machineUpdatedSchema,
   queueUpdatedSchema,
   notificationSchema,
+  agentSpawnedSchema,
+  agentRemovedSchema,
   // Dashboard → Hub
   type DashboardToHubMessage,
   dashboardToHubSchema,

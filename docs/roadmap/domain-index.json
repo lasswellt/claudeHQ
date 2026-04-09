@@ -1,0 +1,350 @@
+{
+  "$schema": "domain-index-v1",
+  "generated": "2026-04-09T02:38:11Z",
+  "domains": [
+    {
+      "slug": "foundation",
+      "name": "Foundation & Build Infrastructure",
+      "description": "Monorepo scaffolding, shared types, core server/daemon bootstraps, version locks. Already complete; serves as the base layer everything else sits on.",
+      "capabilities": ["CAP-001", "CAP-002", "CAP-003", "CAP-004", "CAP-005"],
+      "existing_modules": [
+        "packages/shared",
+        "packages/hub/src/server.ts",
+        "packages/agent/src/daemon.ts",
+        "package.json",
+        "turbo.json",
+        "pnpm-workspace.yaml"
+      ],
+      "new_modules_needed": [],
+      "estimated_complexity": "low"
+    },
+    {
+      "slug": "session-lifecycle",
+      "name": "Session Lifecycle & Protocol",
+      "description": "Binary terminal I/O, subscribe/unsubscribe semantics, session CRUD with tags/timeouts/retries, SDK session discovery, dual-stream parsing, and the auto-scheduler that places work onto machines.",
+      "capabilities": [
+        "CAP-006",
+        "CAP-007",
+        "CAP-008",
+        "CAP-009",
+        "CAP-010",
+        "CAP-011",
+        "CAP-012",
+        "CAP-013",
+        "CAP-014",
+        "CAP-016",
+        "CAP-017"
+      ],
+      "existing_modules": [
+        "packages/hub/src/ws/agent-handler.ts",
+        "packages/hub/src/ws/dashboard-handler.ts",
+        "packages/hub/src/routes/sessions.ts",
+        "packages/hub/src/scheduler.ts",
+        "packages/agent/src/pty-pool.ts",
+        "packages/agent/src/session.ts"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/scheduler/score.ts",
+        "packages/hub/src/migrations/0NN_session_tags_capabilities.sql"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "slug": "hooks-and-approvals",
+      "name": "Hooks, Policy & Approvals",
+      "description": "Hook receivers (HTTP and WS), approval request storage, risk classification, policy engine with default-deny + auto-approve rules, timeout sweeper, SDK canUseTool long-poll bridge, approval API, and three-way approve/edit/reject decisions.",
+      "capabilities": [
+        "CAP-018",
+        "CAP-019",
+        "CAP-020",
+        "CAP-021",
+        "CAP-022",
+        "CAP-023",
+        "CAP-024",
+        "CAP-025",
+        "CAP-026",
+        "CAP-027",
+        "CAP-028",
+        "CAP-029"
+      ],
+      "existing_modules": [
+        "packages/hub/src/routes/hooks.ts",
+        "packages/hub/src/routes/approvals.ts",
+        "packages/hub/src/approvals/engine.ts",
+        "packages/hub/src/approvals/timeout-sweeper.ts",
+        "packages/shared/src/approvals.ts",
+        "packages/agent/src/hooks-config.ts"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/approvals/risk-classifier.ts",
+        "packages/agent/src/approvals/canusetool-bridge.ts"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "slug": "notifications",
+      "name": "Notifications",
+      "description": "Multi-channel delivery (dashboard/browser/Slack/Discord/ntfy.sh) with 5s batching and risk-based escalation.",
+      "capabilities": ["CAP-032", "CAP-033"],
+      "existing_modules": [
+        "packages/hub/src/notifications.ts",
+        "packages/hub/src/routes/notifications.ts"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/notifications/batcher.ts",
+        "packages/hub/src/notifications/escalator.ts",
+        "packages/hub/src/notifications/channels/browser.ts",
+        "packages/hub/src/notifications/channels/ntfy.ts"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "slug": "dashboard-core",
+      "name": "Core Dashboard UI",
+      "description": "Overview page, machine cards + sidebar switcher, session list + detail views, status indicator system, approval queue and in-session approval banner. xterm.js v6 migration already done.",
+      "capabilities": [
+        "CAP-034",
+        "CAP-035",
+        "CAP-036",
+        "CAP-037",
+        "CAP-038",
+        "CAP-039",
+        "CAP-040",
+        "CAP-041",
+        "CAP-042",
+        "CAP-030",
+        "CAP-031"
+      ],
+      "existing_modules": [
+        "packages/dashboard/app/pages/index.vue",
+        "packages/dashboard/app/pages/sessions",
+        "packages/dashboard/app/pages/machines",
+        "packages/dashboard/app/pages/approvals/index.vue",
+        "packages/dashboard/app/layouts/default.vue",
+        "packages/dashboard/app/composables/useTerminal.ts"
+      ],
+      "new_modules_needed": [
+        "packages/dashboard/app/components/StatusIndicator.vue",
+        "packages/dashboard/app/components/machine/MachineSparkline.vue",
+        "packages/dashboard/app/components/session/InSessionApprovalBanner.vue",
+        "packages/dashboard/app/components/approval/AskUserQuestionDialog.vue",
+        "packages/dashboard/app/components/approval/McpElicitationForm.vue"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "slug": "templates-and-scheduling",
+      "name": "Templates & Scheduled Tasks",
+      "description": "Session templates with variable substitution and cron-scheduled tasks with K8s-style concurrency policies.",
+      "capabilities": ["CAP-043", "CAP-044"],
+      "existing_modules": [
+        "packages/hub/src/routes/templates.ts",
+        "packages/hub/src/routes/scheduled-tasks.ts",
+        "packages/hub/src/cron.ts"
+      ],
+      "new_modules_needed": [
+        "packages/dashboard/app/components/session/TemplateGallery.vue",
+        "packages/dashboard/app/components/session/VariableForm.vue"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "slug": "recording-and-replay",
+      "name": "Recording & Replay",
+      "description": "NDJSON transcript persistence, xterm.js replay player with scrub, retention policy on recordings volume.",
+      "capabilities": ["CAP-045", "CAP-046", "CAP-047"],
+      "existing_modules": [
+        "packages/agent/src/recorder.ts",
+        "packages/hub/src/retention.ts",
+        "packages/dashboard/app/pages/sessions/[id]/replay.vue",
+        "packages/dashboard/app/composables/useReplay.ts"
+      ],
+      "new_modules_needed": [],
+      "estimated_complexity": "low"
+    },
+    {
+      "slug": "workforce",
+      "name": "Workforce Platform",
+      "description": "Repo registry, job model with state machine, workspace manager with git worktree lifecycle, environment resolver, pre/post-flight checks, secret resolution via env:/file: references, batch job launcher, and the WS protocol glue that powers them.",
+      "capabilities": [
+        "CAP-048",
+        "CAP-049",
+        "CAP-050",
+        "CAP-051",
+        "CAP-052",
+        "CAP-053",
+        "CAP-054",
+        "CAP-055",
+        "CAP-056"
+      ],
+      "existing_modules": [
+        "packages/hub/src/routes/repos.ts",
+        "packages/hub/src/routes/jobs.ts",
+        "packages/agent/src/workspace-provisioner.ts",
+        "packages/agent/src/container-worktree.ts",
+        "packages/agent/src/git-ops.ts",
+        "packages/shared/src/workforce.ts",
+        "packages/hub/src/migrations/007_workforce.sql"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/jobs/batch.ts",
+        "packages/agent/src/env/detector.ts",
+        "packages/agent/src/secrets/resolver.ts"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "slug": "github-integration",
+      "name": "GitHub Integration",
+      "description": "Manifest flow wizard, PAT fallback, Tailscale Funnel webhook provisioning, encrypted credential store with token rotation, PR auto-creation, and Checks API reporting.",
+      "capabilities": ["CAP-057", "CAP-058", "CAP-059", "CAP-060", "CAP-061", "CAP-062"],
+      "existing_modules": [
+        "packages/hub/src/routes/github.ts",
+        "packages/hub/src/github/client.ts",
+        "packages/hub/src/migrations/008_github.sql",
+        "packages/dashboard/app/pages/settings/github.vue"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/github/manifest-flow.ts",
+        "packages/hub/src/github/checks.ts",
+        "packages/dashboard/app/components/github/SetupWizard.vue",
+        "deploy/tailscale-funnel.sh"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "slug": "workforce-dashboard",
+      "name": "Workforce Dashboard UI",
+      "description": "Repos page, job launcher modal, PR tracker, batch launcher, enhanced workforce overview.",
+      "capabilities": ["CAP-063", "CAP-064", "CAP-065", "CAP-066", "CAP-067"],
+      "existing_modules": [
+        "packages/dashboard/app/pages/repos/index.vue",
+        "packages/dashboard/app/pages/jobs/index.vue",
+        "packages/dashboard/app/pages/prs/index.vue",
+        "packages/dashboard/app/pages/index.vue"
+      ],
+      "new_modules_needed": [
+        "packages/dashboard/app/components/job/JobLauncherModal.vue",
+        "packages/dashboard/app/components/job/BatchLauncher.vue"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "slug": "cost-tracking",
+      "name": "Cost Tracking & Budgets",
+      "description": "SDKResultMessage capture into session_costs, pricing table + formula, per-query and period budgets, token counting estimator, cost dashboard, and OpenTelemetry/Langfuse observability.",
+      "capabilities": ["CAP-068", "CAP-069", "CAP-070", "CAP-071", "CAP-072", "CAP-073", "CAP-074"],
+      "existing_modules": [
+        "packages/hub/src/routes/costs.ts",
+        "packages/hub/src/migrations/009_workforce_intelligence.sql",
+        "packages/dashboard/app/pages/costs/index.vue"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/costs/pricing.ts",
+        "packages/hub/src/costs/formula.ts",
+        "packages/hub/src/costs/token-counter.ts",
+        "packages/hub/src/costs/budget-enforcer.ts",
+        "packages/hub/src/observability/telemetry.ts"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "slug": "observability",
+      "name": "Observability",
+      "description": "Machine metrics time-series, session event log, audit log for mutations, container stats reporting.",
+      "capabilities": ["CAP-015", "CAP-075", "CAP-087"],
+      "existing_modules": [
+        "packages/hub/src/ws/agent-handler.ts",
+        "packages/hub/src/container-orchestrator.ts"
+      ],
+      "new_modules_needed": [
+        "packages/hub/src/migrations/0NN_audit_log.sql",
+        "packages/hub/src/migrations/0NN_machine_metrics.sql",
+        "packages/hub/src/observability/metrics-store.ts",
+        "packages/hub/src/observability/audit.ts"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "slug": "docker-sandbox",
+      "name": "Docker Sandbox & Execution Backends",
+      "description": "SpawnStrategy abstraction (local/docker/ssh/wsl2), container pool + security baseline + restricted network, pre-pull/cleanup, async setup containers, auto-accept permissions model inside the sandbox.",
+      "capabilities": [
+        "CAP-076",
+        "CAP-077",
+        "CAP-078",
+        "CAP-079",
+        "CAP-080",
+        "CAP-081",
+        "CAP-082",
+        "CAP-083",
+        "CAP-084",
+        "CAP-085",
+        "CAP-086",
+        "CAP-088",
+        "CAP-089",
+        "CAP-090",
+        "CAP-091",
+        "CAP-092"
+      ],
+      "existing_modules": [
+        "packages/agent/src/container-pool.ts",
+        "packages/agent/src/container-worktree.ts",
+        "packages/agent/src/container-setup.ts",
+        "packages/agent/src/container-security.ts",
+        "packages/agent/src/spawn-docker.ts",
+        "packages/agent/src/spawn-ssh.ts",
+        "packages/hub/src/container-orchestrator.ts"
+      ],
+      "new_modules_needed": [
+        "packages/agent/src/spawn-wsl.ts",
+        "packages/agent/src/network/allowlist-proxy.ts",
+        "deploy/docker/network/claude-restricted.yml",
+        "deploy/docker/proxy/tinyproxy.conf"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "slug": "deploy-infra",
+      "name": "Deployment Infrastructure",
+      "description": "Single-container Hub serving dashboard, multi-stage Dockerfile with turbo prune, Docker Compose (sidecar + simple variants), Docker secrets, agent image, SQLite backup strategy, .dockerignore, memory limits.",
+      "capabilities": [
+        "CAP-093",
+        "CAP-094",
+        "CAP-095",
+        "CAP-096",
+        "CAP-097",
+        "CAP-098",
+        "CAP-099",
+        "CAP-100",
+        "CAP-101",
+        "CAP-102",
+        "CAP-103"
+      ],
+      "existing_modules": [
+        "Dockerfile.hub",
+        "Dockerfile.agent",
+        "docker-compose.yml",
+        ".dockerignore",
+        "deploy/"
+      ],
+      "new_modules_needed": [
+        "docker-compose.simple.yml",
+        "deploy/ts-config/serve.json",
+        "deploy/secrets/.gitkeep",
+        "deploy/litestream.yml",
+        "scripts/backup.sh"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "slug": "docs",
+      "name": "Product & Market Docs",
+      "description": "Competitive landscape write-up; architecture doc corrections (HTTP vs command hook matrix, xterm.js v6 migration notes).",
+      "capabilities": ["CAP-104"],
+      "existing_modules": ["docs/"],
+      "new_modules_needed": ["docs/market/competitive-landscape.md"],
+      "estimated_complexity": "low"
+    }
+  ]
+}

@@ -1,75 +1,225 @@
 {
   "activeContext": {
-    "currentPhase": "PHASE-9",
+    "currentPhase": "done",
     "activeSprint": null,
-    "lastPlanDate": "2026-03-16"
+    "lastPlanDate": "2026-04-09",
+    "lastCompletedSprint": "sprint-020",
+    "lastCompletedEpic": "E009",
+    "roadmapStatus": "complete"
   },
   "epicRegistry": {
     "path": "docs/roadmap/_EPIC_REGISTRY.json",
-    "totalEpics": 46,
+    "totalEpics": 9,
     "phases": 9,
     "statuses": {
-      "planned": 5,
+      "planned": 8,
       "in-progress": 0,
-      "complete": 41
-    }
+      "done": 1
+    },
+    "note": "Brownfield refresh on 2026-04-09 replaced the prior 46-epic registry with 9 R-phase epics (E001..E009). The prior EPIC-001..EPIC-041 history is preserved below but no longer drives planning."
   },
   "completedEpics": [
-    "EPIC-001", "EPIC-002", "EPIC-003", "EPIC-004", "EPIC-005",
-    "EPIC-006", "EPIC-007", "EPIC-008", "EPIC-009", "EPIC-010",
-    "EPIC-011", "EPIC-012", "EPIC-013", "EPIC-014", "EPIC-015",
-    "EPIC-016", "EPIC-017", "EPIC-018", "EPIC-019", "EPIC-020",
-    "EPIC-021", "EPIC-022", "EPIC-023", "EPIC-024", "EPIC-025",
-    "EPIC-026", "EPIC-027", "EPIC-028", "EPIC-029", "EPIC-030",
-    "EPIC-031", "EPIC-032", "EPIC-033", "EPIC-034", "EPIC-035",
-    "EPIC-036", "EPIC-037", "EPIC-038", "EPIC-039", "EPIC-040",
+    "EPIC-001",
+    "EPIC-002",
+    "EPIC-003",
+    "EPIC-004",
+    "EPIC-005",
+    "EPIC-006",
+    "EPIC-007",
+    "EPIC-008",
+    "EPIC-009",
+    "EPIC-010",
+    "EPIC-011",
+    "EPIC-012",
+    "EPIC-013",
+    "EPIC-014",
+    "EPIC-015",
+    "EPIC-016",
+    "EPIC-017",
+    "EPIC-018",
+    "EPIC-019",
+    "EPIC-020",
+    "EPIC-021",
+    "EPIC-022",
+    "EPIC-023",
+    "EPIC-024",
+    "EPIC-025",
+    "EPIC-026",
+    "EPIC-027",
+    "EPIC-028",
+    "EPIC-029",
+    "EPIC-030",
+    "EPIC-031",
+    "EPIC-032",
+    "EPIC-033",
+    "EPIC-034",
+    "EPIC-035",
+    "EPIC-036",
+    "EPIC-037",
+    "EPIC-038",
+    "EPIC-039",
+    "EPIC-040",
     "EPIC-041"
   ],
   "completedSprints": [
-    { "id": "sprint-001", "epics": ["EPIC-001", "EPIC-002", "EPIC-003", "EPIC-006"], "stories": 15, "points": 40 },
-    { "id": "sprint-002", "epics": ["EPIC-004", "EPIC-005", "EPIC-007", "EPIC-008", "EPIC-009", "EPIC-010"], "stories": 10, "points": 39 },
-    { "id": "sprint-003", "epics": ["EPIC-011", "EPIC-012", "EPIC-013", "EPIC-014", "EPIC-015"], "stories": 10, "points": 36 },
+    {
+      "id": "sprint-001",
+      "epics": ["EPIC-001", "EPIC-002", "EPIC-003", "EPIC-006"],
+      "stories": 15,
+      "points": 40
+    },
+    {
+      "id": "sprint-002",
+      "epics": ["EPIC-004", "EPIC-005", "EPIC-007", "EPIC-008", "EPIC-009", "EPIC-010"],
+      "stories": 10,
+      "points": 39
+    },
+    {
+      "id": "sprint-003",
+      "epics": ["EPIC-011", "EPIC-012", "EPIC-013", "EPIC-014", "EPIC-015"],
+      "stories": 10,
+      "points": 36
+    },
     { "id": "sprint-004", "epics": ["EPIC-016", "EPIC-017"], "stories": 10, "points": 38 },
-    { "id": "sprint-005", "epics": ["EPIC-018", "EPIC-019", "EPIC-020", "EPIC-021", "EPIC-022"], "stories": 10, "points": 38 },
-    { "id": "sprint-006", "epics": ["EPIC-023", "EPIC-024", "EPIC-025", "EPIC-026", "EPIC-027"], "stories": 8, "points": 30 },
-    { "id": "sprint-007", "epics": ["EPIC-028", "EPIC-029", "EPIC-030", "EPIC-031", "EPIC-032"], "stories": 10, "points": 42 },
-    { "id": "sprint-008", "epics": ["EPIC-033", "EPIC-034", "EPIC-035"], "stories": 8, "points": 32 },
-    { "id": "sprint-009", "epics": ["EPIC-036", "EPIC-037", "EPIC-038", "EPIC-039"], "stories": 8, "points": 30 },
-    { "id": "sprint-010", "epics": ["EPIC-040", "EPIC-041"], "stories": 4, "points": 16 }
+    {
+      "id": "sprint-005",
+      "epics": ["EPIC-018", "EPIC-019", "EPIC-020", "EPIC-021", "EPIC-022"],
+      "stories": 10,
+      "points": 38
+    },
+    {
+      "id": "sprint-006",
+      "epics": ["EPIC-023", "EPIC-024", "EPIC-025", "EPIC-026", "EPIC-027"],
+      "stories": 8,
+      "points": 30
+    },
+    {
+      "id": "sprint-007",
+      "epics": ["EPIC-028", "EPIC-029", "EPIC-030", "EPIC-031", "EPIC-032"],
+      "stories": 10,
+      "points": 42
+    },
+    {
+      "id": "sprint-008",
+      "epics": ["EPIC-033", "EPIC-034", "EPIC-035"],
+      "stories": 8,
+      "points": 32
+    },
+    {
+      "id": "sprint-009",
+      "epics": ["EPIC-036", "EPIC-037", "EPIC-038", "EPIC-039"],
+      "stories": 8,
+      "points": 30
+    },
+    { "id": "sprint-010", "epics": ["EPIC-040", "EPIC-041"], "stories": 4, "points": 16 },
+    {
+      "id": "sprint-012",
+      "epics": ["E001"],
+      "phase": "R1",
+      "stories": 8,
+      "points": 26,
+      "completed_date": "2026-04-08",
+      "review_findings_resolved": ["HI-01", "HI-03", "HI-04", "HI-05"]
+    },
+    {
+      "id": "sprint-013",
+      "epics": ["E002"],
+      "phase": "R2",
+      "stories": 12,
+      "points": 41,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-014",
+      "epics": ["E003"],
+      "phase": "R3",
+      "stories": 9,
+      "points": 30,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-015",
+      "epics": ["E004"],
+      "phase": "R4",
+      "stories": 8,
+      "points": 29,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-016",
+      "epics": ["E005"],
+      "phase": "R5",
+      "stories": 9,
+      "points": 33,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-017",
+      "epics": ["E006"],
+      "phase": "R6",
+      "stories": 7,
+      "points": 27,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-018",
+      "epics": ["E007"],
+      "phase": "R7",
+      "stories": 8,
+      "points": 27,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-019",
+      "epics": ["E008"],
+      "phase": "R8",
+      "stories": 7,
+      "points": 18,
+      "completed_date": "2026-04-09"
+    },
+    {
+      "id": "sprint-020",
+      "epics": ["E009"],
+      "phase": "R9",
+      "stories": 6,
+      "points": 19,
+      "completed_date": "2026-04-09"
+    }
   ],
   "codeReview": {
     "date": "2026-03-16",
     "scope": "full-codebase",
-    "status": "pass",
-    "criticalIssues": 2,
-    "highIssues": 7,
-    "mediumIssues": 24,
-    "lowIssues": 14,
-    "infoIssues": 4,
-    "totalFindings": 51,
-    "allFixed": true,
-    "fixCommits": ["971f0f9", "6e28de9", "4a8dc7b"],
-    "report": "docs/roadmap/CODEBASE_REVIEW_2026-03-16.md",
+    "status": "fail",
+    "criticalIssues": 1,
+    "highIssues": 13,
+    "mediumIssues": 39,
+    "lowIssues": 27,
+    "infoIssues": 5,
+    "totalFindings": 85,
+    "allFixed": false,
+    "fixCommits": [],
+    "report": "docs/roadmap/CODEBASE_REVIEW_2_2026-03-16.md",
     "priorReview": {
       "date": "2026-03-16",
-      "criticalIssues": 6,
-      "highIssues": 6,
+      "scope": "full-codebase",
+      "status": "pass",
+      "criticalIssues": 2,
+      "highIssues": 7,
+      "totalFindings": 51,
       "allFixed": true,
-      "fixCommits": ["a94d44e", "0789874"]
+      "fixCommits": ["971f0f9", "6e28de9", "4a8dc7b"],
+      "report": "docs/roadmap/CODEBASE_REVIEW_2026-03-16.md"
     }
   },
-  "nextPhase": {
-    "id": "PHASE-9",
-    "name": "Container Orchestration with Sandboxed Autonomy",
-    "epics": ["EPIC-042", "EPIC-043", "EPIC-044", "EPIC-045", "EPIC-046"]
-  },
+  "nextPhase": null,
   "lastExecution": {
-    "skill": "sprint-review",
-    "date": "2026-03-16",
-    "scope": "full-codebase",
+    "skill": "sprint",
+    "date": "2026-04-08",
+    "scope": "sprint-012 (E001)",
     "status": "pass",
-    "findings": 51,
-    "outcome": "Full codebase review: 51 findings identified and all fixed across 3 commits"
+    "storiesDelivered": 8,
+    "pointsDelivered": 26,
+    "outcome": "E001 Stability & Foundations Finish complete. All 4 HI-severity findings from 2026-03-16 codebase review fixed. CAP-010/015/022/075 advanced. R2 unblocked."
   },
   "researchIndex": {
     "path": "docs/_research/research-index.json",

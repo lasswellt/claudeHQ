@@ -1,0 +1,23 @@
+{
+  "sprintId": "sprint-008",
+  "number": 8,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-033", "EPIC-034", "EPIC-035"],
+  "storyCount": 8,
+  "totalPoints": 32,
+  "breakdown": {
+    "hub": { "stories": 5, "points": 20 },
+    "dashboard": { "stories": 3, "points": 12 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "008-001", "title": "Hub GitHub client + manifest flow routes", "epic": "EPIC-033", "pkg": "hub", "points": 5 },
+    { "id": "008-002", "title": "Hub GitHub App credential storage + token rotation", "epic": "EPIC-033", "pkg": "hub", "points": 3 },
+    { "id": "008-003", "title": "Dashboard GitHub setup wizard", "epic": "EPIC-033", "pkg": "dashboard", "points": 5 },
+    { "id": "008-004", "title": "Hub PR creation from job completion", "epic": "EPIC-034", "pkg": "hub", "points": 5 },
+    { "id": "008-005", "title": "Hub pull_requests table + GitHub webhook receiver", "epic": "EPIC-034", "pkg": "hub", "points": 4 },
+    { "id": "008-006", "title": "Dashboard PR tracker page", "epic": "EPIC-034", "pkg": "dashboard", "points": 4 },
+    { "id": "008-007", "title": "Hub issue linking + auto-comments", "epic": "EPIC-035", "pkg": "hub", "points": 3 },
+    { "id": "008-008", "title": "Dashboard GitHub Checks status display", "epic": "EPIC-034", "pkg": "dashboard", "points": 3 }
+  ]
+}

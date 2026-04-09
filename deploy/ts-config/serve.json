@@ -1,0 +1,20 @@
+{
+  "$comment": "CAP-097 / story 019-002: Tailscale Serve config. Terminates HTTPS at :443 with an auto-provisioned Let's Encrypt cert and proxies to the hub's internal port 7700. Place at deploy/ts-config/serve.json; docker-compose.tailscale.yml bind-mounts the directory to /config.",
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://127.0.0.1:7700"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "${TS_CERT_DOMAIN}:443": false
+  }
+}

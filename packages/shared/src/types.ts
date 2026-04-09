@@ -22,6 +22,8 @@ export const sessionRecordSchema = z.object({
   recording_path: z.string().optional(),
   recording_size_bytes: z.number().optional(),
   recording_chunk_count: z.number().optional(),
+  // CAP-010: session tags for filtering + policy matching
+  tags: z.array(z.string()).optional(),
   created_at: z.number(),
 });
 export type SessionRecord = z.infer<typeof sessionRecordSchema>;
@@ -69,3 +71,25 @@ export const notificationRecordSchema = z.object({
   delivered: z.boolean().default(false),
 });
 export type NotificationRecord = z.infer<typeof notificationRecordSchema>;
+
+// -- Spawned Agent Status --
+export const spawnedAgentStatusSchema = z.enum([
+  'creating', 'starting', 'running', 'stopping', 'stopped', 'error', 'removed',
+]);
+export type SpawnedAgentStatus = z.infer<typeof spawnedAgentStatusSchema>;
+
+// -- Spawned Agent Record --
+export const spawnedAgentRecordSchema = z.object({
+  id: z.string(),
+  container_id: z.string().optional(),
+  repo_id: z.string().optional(),
+  repo_url: z.string(),
+  branch: z.string().default('main'),
+  worktree_path: z.string().optional(),
+  status: spawnedAgentStatusSchema,
+  error_message: z.string().optional(),
+  created_at: z.number(),
+  started_at: z.number().optional(),
+  stopped_at: z.number().optional(),
+});
+export type SpawnedAgentRecord = z.infer<typeof spawnedAgentRecordSchema>;

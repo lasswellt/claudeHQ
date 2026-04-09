@@ -1,0 +1,14 @@
+{
+  "sprintId": "sprint-011",
+  "number": 11,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-042", "EPIC-043", "EPIC-044", "EPIC-045", "EPIC-046"],
+  "storyCount": 8,
+  "totalPoints": 38,
+  "breakdown": {
+    "agent": { "stories": 5, "points": 23 },
+    "hub+shared": { "stories": 2, "points": 8 },
+    "infra": { "stories": 1, "points": 7 }
+  },
+  "status": "planned"
+}

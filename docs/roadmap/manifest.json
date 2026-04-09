@@ -1,0 +1,31 @@
+{
+  "$schema": "roadmap-manifest-v1",
+  "generated": "2026-04-09T02:38:11Z",
+  "mode": "full",
+  "session_id": "20260409T023811Z",
+  "artifacts": {
+    "capability_index": "docs/roadmap/capability-index.json",
+    "research_cache": "docs/roadmap/research-cache.json",
+    "gap_analysis": "docs/roadmap/gap-analysis.md",
+    "domain_index": "docs/roadmap/domain-index.json",
+    "phase_plan": "docs/roadmap/phase-plan.json",
+    "summary": "docs/roadmap/SUMMARY.md",
+    "registry": "docs/roadmap/roadmap-registry.json",
+    "epic_registry": "docs/roadmap/_EPIC_REGISTRY.json",
+    "tracker": "docs/roadmap/tracker.md",
+    "cross_cutting": "docs/roadmap/cross-cutting/notes.md",
+    "epics_directory": "docs/roadmap/epics/",
+    "backup_of_prior_roadmap": "docs/roadmap.bak.20260409/"
+  },
+  "epics": [
+    "docs/roadmap/epics/E001-stability-and-foundations-finish.md",
+    "docs/roadmap/epics/E002-approvals-and-notifications-completeness.md",
+    "docs/roadmap/epics/E003-scheduler-and-session-lifecycle.md",
+    "docs/roadmap/epics/E004-cost-tracking-and-budgets.md",
+    "docs/roadmap/epics/E005-workforce-completeness.md",
+    "docs/roadmap/epics/E006-github-wizard-and-rotation.md",
+    "docs/roadmap/epics/E007-docker-sandbox-hardening.md",
+    "docs/roadmap/epics/E008-deployment-and-operations.md",
+    "docs/roadmap/epics/E009-completeness-sweep-and-docs.md"
+  ]
+}

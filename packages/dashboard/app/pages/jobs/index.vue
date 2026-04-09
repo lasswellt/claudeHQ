@@ -30,7 +30,17 @@ const statusColor: Record<string, string> = {
 
 <template>
   <div>
-    <h1 class="text-h4 font-weight-bold mb-6">Jobs</h1>
+    <div class="d-flex align-center justify-space-between mb-6">
+      <h1 class="text-h4 font-weight-bold">Jobs</h1>
+      <v-btn
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-rocket-launch"
+        to="/jobs/batch"
+      >
+        Launch batch
+      </v-btn>
+    </div>
 
     <v-skeleton-loader v-if="loading" type="table" />
     <v-alert v-else-if="jobs.length === 0" type="info" variant="tonal">

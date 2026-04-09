@@ -91,6 +91,12 @@ export class NotificationEngine {
       return;
     }
 
+    // CAP-032 / story 013-011: ntfy.sh has its own transport — plain
+    // text body with metadata in HTTP headers, not JSON.
+    if (webhook.format === 'ntfy') {
+      return this.sendNtfyNotification(webhook, event);
+    }
+
     const payload = this.formatPayload(webhook.format, event);
 
     try {
@@ -109,6 +115,51 @@ export class NotificationEngine {
       }
     } catch (err) {
       this.logger.error({ url: webhook.url, err }, 'Webhook delivery error');
+    }
+  }
+
+  /**
+   * CAP-032 / story 013-011: ntfy.sh notification channel.
+   *
+   * ntfy accepts POST to `<base>/<topic>` where the body is the
+   * message text and optional metadata is carried in headers:
+   *   - Title:    event title
+   *   - Priority: 1..5 (1=min, 5=urgent)
+   *   - Click:    URL opened when the user taps the notification
+   *   - Tags:     comma-separated emoji/tag list
+   *
+   * This path does not JSON-encode the body (that would show up as
+   * literal JSON in the user's phone notification).
+   */
+  private async sendNtfyNotification(
+    webhook: WebhookConfig,
+    event: NotificationEvent,
+  ): Promise<void> {
+    const { title, body, priority, tags, clickUrl } = buildNtfyPayload(event);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/plain; charset=utf-8',
+      Title: title,
+      Priority: String(priority),
+    };
+    if (tags.length > 0) headers.Tags = tags.join(',');
+    if (clickUrl) headers.Click = clickUrl;
+
+    try {
+      const res = await fetch(webhook.url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        this.logger.warn(
+          { url: webhook.url, status: res.status },
+          'ntfy delivery failed',
+        );
+      }
+    } catch (err) {
+      this.logger.error({ url: webhook.url, err }, 'ntfy delivery error');
     }
   }
 
@@ -180,5 +231,53 @@ interface WebhookConfig {
   url: string;
   label?: string;
   events?: string[];
-  format?: 'json' | 'discord' | 'slack';
+  format?: 'json' | 'discord' | 'slack' | 'ntfy';
+  /** CAP-032: base URL the user should land on when tapping a ntfy notification. */
+  clickBaseUrl?: string;
+}
+
+// ── ntfy payload builder (exported for testing) ─────────────────
+
+export interface NtfyPayload {
+  title: string;
+  body: string;
+  priority: 1 | 2 | 3 | 4 | 5;
+  tags: string[];
+  clickUrl?: string;
+}
+
+/**
+ * Pure function — maps a notification event to ntfy fields.
+ * Kept exported so unit tests can assert the mapping without a
+ * full NotificationEngine instance or a live HTTP call.
+ */
+export function buildNtfyPayload(event: NotificationEvent): NtfyPayload {
+  const title = `Claude HQ: ${event.type.replace(/[_.]/g, ' ')}`;
+  const body =
+    (typeof event.data.message === 'string' && event.data.message) ||
+    (typeof event.data.prompt === 'string' && event.data.prompt) ||
+    (typeof event.data.error === 'string' && event.data.error) ||
+    JSON.stringify(event.data);
+
+  // Map event type → urgency. Failures and approvals are urgent;
+  // session-started / queue-updated are informational.
+  let priority: NtfyPayload['priority'] = 3; // default
+  if (event.type.includes('failed') || event.type.includes('error')) priority = 5;
+  else if (event.type.includes('approval')) priority = 4;
+  else if (event.type.includes('completed')) priority = 3;
+  else if (event.type.includes('started') || event.type.includes('queue')) priority = 2;
+
+  const tags: string[] = [];
+  if (event.type.includes('failed') || event.type.includes('error')) tags.push('rotating_light');
+  else if (event.type.includes('approval')) tags.push('shield');
+  else if (event.type.includes('completed')) tags.push('white_check_mark');
+  else if (event.type.includes('started')) tags.push('rocket');
+  if (event.machineId) tags.push(`machine=${event.machineId}`);
+
+  return {
+    title,
+    body,
+    priority,
+    tags,
+  };
 }

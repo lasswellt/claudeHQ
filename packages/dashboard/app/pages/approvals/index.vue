@@ -1,12 +1,32 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import { useApprovalsStore } from '../../stores/approvals';
+import ApproveWithRememberDialog from '../../components/approval/ApproveWithRememberDialog.vue';
+import ApprovalDetailDrawer from '../../components/approval/ApprovalDetailDrawer.vue';
+import type { ApprovalRequest } from '@chq/shared/browser';
 
 definePageMeta({ layout: 'default' });
 
 const store = useApprovalsStore();
 
 onMounted(() => store.fetchApprovals());
+
+// CAP-027: three-way decision drawer state.
+const drawerOpen = ref(false);
+const drawerApproval = ref<ApprovalRequest | null>(null);
+
+function openDrawer(approval: ApprovalRequest): void {
+  drawerApproval.value = approval;
+  drawerOpen.value = true;
+}
+
+async function onDrawerResolve(
+  id: string,
+  decision: 'approve' | 'deny',
+  opts: { editedInput?: string; responseText?: string },
+): Promise<void> {
+  await store.respond(id, decision, opts.responseText, false, opts.editedInput);
+}
 
 const riskColor: Record<string, string> = {
   low: 'info',
@@ -23,8 +43,29 @@ const statusColor: Record<string, string> = {
   cancelled: 'default',
 };
 
-async function handleRespond(id: string, decision: 'approve' | 'deny'): Promise<void> {
-  await store.respond(id, decision);
+// CAP-028: Approve-and-Remember dialog state.
+const approveDialogOpen = ref(false);
+const dialogApproval = ref<ApprovalRequest | null>(null);
+
+function openApproveDialog(approval: ApprovalRequest): void {
+  dialogApproval.value = approval;
+  approveDialogOpen.value = true;
+}
+
+async function onApproveConfirm(
+  id: string,
+  rememberAsRule: boolean,
+  _ruleName: string | null,
+): Promise<void> {
+  // Note: rule name customization is reflected in the UI preview,
+  // but the hub currently auto-generates the saved rule's name from
+  // the tool. Propagating the custom name needs a small hub schema
+  // bump — tracked for a future story.
+  await store.respond(id, 'approve', undefined, rememberAsRule);
+}
+
+async function handleDeny(id: string): Promise<void> {
+  await store.respond(id, 'deny');
 }
 
 async function bulkApproveAllLowRisk(): Promise<void> {
@@ -83,6 +124,8 @@ async function bulkApproveAllLowRisk(): Promise<void> {
         { title: 'Actions', key: 'actions', width: '180px', sortable: false },
       ]"
       density="comfortable"
+      hover
+      @click:row="(_: unknown, row: { item: ApprovalRequest }) => openDrawer(row.item)"
     >
       <template #item.risk_level="{ value }">
         <v-chip :color="riskColor[value as string]" size="x-small" variant="flat">
@@ -107,7 +150,7 @@ async function bulkApproveAllLowRisk(): Promise<void> {
             color="success"
             variant="tonal"
             class="mr-1"
-            @click.stop="handleRespond((item as { id: string }).id, 'approve')"
+            @click.stop="openApproveDialog(item as ApprovalRequest)"
           >
             Approve
           </v-btn>
@@ -115,7 +158,7 @@ async function bulkApproveAllLowRisk(): Promise<void> {
             size="x-small"
             color="error"
             variant="tonal"
-            @click.stop="handleRespond((item as { id: string }).id, 'deny')"
+            @click.stop="handleDeny((item as { id: string }).id)"
           >
             Deny
           </v-btn>
@@ -123,5 +166,19 @@ async function bulkApproveAllLowRisk(): Promise<void> {
         <span v-else class="text-caption text-medium-emphasis">—</span>
       </template>
     </v-data-table>
+
+    <!-- CAP-028: Approve-and-Remember flow -->
+    <ApproveWithRememberDialog
+      v-model="approveDialogOpen"
+      :approval="dialogApproval"
+      @confirm="onApproveConfirm"
+    />
+
+    <!-- CAP-027: three-way decision detail drawer -->
+    <ApprovalDetailDrawer
+      v-model="drawerOpen"
+      :approval="drawerApproval"
+      @resolve="onDrawerResolve"
+    />
   </div>
 </template>

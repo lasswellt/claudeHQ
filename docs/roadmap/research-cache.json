@@ -1,0 +1,64 @@
+{
+  "$schema": "research-cache-v1",
+  "generated": "2026-04-09T02:38:11Z",
+  "sources": [
+    {
+      "source": "context7",
+      "library_id": "/websites/platform_claude_en_agent-sdk",
+      "query": "spawnClaudeCodeProcess custom spawn option, canUseTool signature, query and listSessions APIs, stream-json, permission modes, hooks config",
+      "confidence": "high",
+      "related_capabilities": ["CAP-016", "CAP-017", "CAP-025", "CAP-027", "CAP-030", "CAP-076"],
+      "findings": [
+        "canUseTool TypeScript signature: (toolName: string, input: Record<string, unknown>, options: { signal: AbortSignal; suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string; toolUseID: string; agentID?: string }) => Promise<PermissionResult>",
+        "PermissionResult shape: { behavior: 'allow' | 'deny'; updatedInput?: Record; updatedPermissions?: PermissionUpdate[]; message?: string; interrupt?: boolean }",
+        "Permission modes: default | dontAsk | acceptEdits | bypassPermissions | plan | auto",
+        "Dynamic mid-session mode change via q.setPermissionMode(mode) on query object — important for CAP-025 (SDK bridge can escalate to dontAsk on long-poll timeout or inversely tighten on high-risk)",
+        "askUserQuestion tool has previewFormat ToolConfig: 'markdown' | 'html' — CAP-030 form renderer should honor this",
+        "options.suggestions carries PermissionUpdate[] — CAP-028 (Approve-and-Remember) can read these to pre-fill the rule creation UI instead of inferring from scratch",
+        "options.blockedPath + decisionReason give context for why a permission request fired — useful metadata to persist in approval_requests for debugging",
+        "options.toolUseID is REQUIRED and stable — use as idempotency key for approval_requests to avoid duplicates on hook retries",
+        "GAP: Context7 does not surface a spawnClaudeCodeProcess custom-spawn option in the public SDK docs. The workforce research doc asserts this exists but it may be preview/internal. Recommend treating CAP-076 as an abstraction layer the AGENT implements (via child_process.spawn over docker exec / ssh / wsl), NOT as an SDK option. The SDK query() runs in-process; the abstraction lives outside the SDK."
+      ]
+    },
+    {
+      "source": "context7",
+      "library_id": "/apocas/dockerode",
+      "query": "createContainer HostConfig security options, attach, demuxStream, wait, stats streaming",
+      "confidence": "high",
+      "related_capabilities": ["CAP-080", "CAP-081", "CAP-085", "CAP-086", "CAP-087"],
+      "findings": [
+        "container.attach({stream: true, stdout: true, stderr: true}) returns a multiplexed stream when Tty: false",
+        "container.modem.demuxStream(stream, stdoutWritable, stderrWritable) splits the multiplexed stream — confirmed exactly as CAP-086 specifies",
+        "Tty MUST be false for demuxing — TTY mode returns a single combined stream (matches research doc advice against -t flag)",
+        "container.wait(callback) returns data.StatusCode on exit — use for CAP-085 exit code capture",
+        "container.stats({stream: true}) emits JSON chunks with cpu_stats.cpu_usage.total_usage, memory_stats.usage, networks.eth0.rx_bytes — CAP-087 needs to derive cpuPercent from cpu_stats via (current - previous) / (system_current - system_previous) * online_cpus * 100",
+        "container.stats({stream: false}) returns a single snapshot — use for on-demand stats queries",
+        "container.logs({stdout, stderr, follow, timestamps, tail}) supports historical + real-time follow with the same demuxStream helper — alternative to attach for late-joiners",
+        "docker.run(image, cmd, outputStream, options, callback) is a single-call helper that creates, starts, attaches, and waits — good fit for CAP-089 (async setup commands in temp container) to avoid manual lifecycle dance"
+      ]
+    }
+  ],
+  "gaps_and_risks": [
+    {
+      "capability": "CAP-076",
+      "risk": "spawnClaudeCodeProcess option mentioned in workforce research may not exist in current SDK. Plan to implement spawn abstraction at the AGENT level (child_process over docker exec / ssh / wsl) rather than as an SDK option. If the option turns out to exist, CAP-076 can be refactored to pass it through.",
+      "severity": "medium"
+    },
+    {
+      "capability": "CAP-087",
+      "risk": "Docker stats JSON returns raw numerators and denominators, not cpuPercent directly. Stats reporter must compute delta over a sampling interval. Document the formula in the spec.",
+      "severity": "low"
+    },
+    {
+      "capability": "CAP-100",
+      "risk": "Litestream Docker sidecar config not yet verified. Research doc references it but specific compose config not pulled. Plan to use Litestream's official docker image and mount the same sqlite-data volume; defer detailed config to implementation sprint.",
+      "severity": "low"
+    },
+    {
+      "capability": "CAP-082",
+      "risk": "Squid vs tinyproxy choice unresolved in research. Recommendation: start with tinyproxy for minimal surface area, allowlist api.anthropic.com + registry.npmjs.org + github IP ranges via filter config. Squid only if we need caching/logging later.",
+      "severity": "low"
+    }
+  ],
+  "notes": "Research enrichment intentionally limited. The 7 source research documents are comprehensive for most capabilities. Targeted Context7 lookups focused on the two libraries with the highest implementation-detail risk: the Claude Agent SDK (canUseTool / permission modes — cross-cuts the approval workflow) and dockerode (cross-cuts the container orchestration domain). Other capabilities either derive cleanly from the source docs or have implementation details that can be resolved during sprint planning."
+}

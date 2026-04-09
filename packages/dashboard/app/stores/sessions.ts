@@ -7,6 +7,9 @@ export const useSessionsStore = defineStore('sessions', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
+  // CAP-010: tag filter state
+  const selectedTags = ref<string[]>([]);
+
   const activeSessions = computed(() =>
     sessions.value.filter((s) => s.status === 'running'),
   );
@@ -18,6 +21,33 @@ export const useSessionsStore = defineStore('sessions', () => {
     }
     return map;
   });
+
+  // Unique tags across all loaded sessions, alphabetically sorted.
+  const allTags = computed(() => {
+    const set = new Set<string>();
+    for (const s of sessions.value) {
+      for (const tag of s.tags ?? []) set.add(tag);
+    }
+    return [...set].sort();
+  });
+
+  // Sessions narrowed by any currently selected tag (OR match).
+  // Empty selection means "no filter" → return everything.
+  const filteredSessions = computed(() => {
+    if (selectedTags.value.length === 0) return sessions.value;
+    const sel = new Set(selectedTags.value);
+    return sessions.value.filter((s) => (s.tags ?? []).some((t) => sel.has(t)));
+  });
+
+  function toggleTag(tag: string): void {
+    const idx = selectedTags.value.indexOf(tag);
+    if (idx >= 0) selectedTags.value.splice(idx, 1);
+    else selectedTags.value.push(tag);
+  }
+
+  function clearTagFilter(): void {
+    selectedTags.value = [];
+  }
 
   async function fetchSessions(): Promise<void> {
     loading.value = true;
@@ -47,5 +77,18 @@ export const useSessionsStore = defineStore('sessions', () => {
     }
   }
 
-  return { sessions, loading, error, activeSessions, sessionById, fetchSessions, handleWsMessage };
+  return {
+    sessions,
+    loading,
+    error,
+    activeSessions,
+    sessionById,
+    selectedTags,
+    allTags,
+    filteredSessions,
+    toggleTag,
+    clearTagFilter,
+    fetchSessions,
+    handleWsMessage,
+  };
 });

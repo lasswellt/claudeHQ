@@ -1,0 +1,15 @@
+# CAP-082 / story 018-001: tinyproxy allowlist regex file.
+# Format: one regex per line; anything matching is ALLOWED.
+# `FilterDefaultDeny Yes` in tinyproxy.conf denies everything else.
+#
+# Maintenance note: add a new line for every additional domain,
+# including the subdomain. Do NOT add `.*` wildcards — the goal is
+# an explicit allowlist, not a loose match.
+
+^api\.anthropic\.com$
+^registry\.npmjs\.org$
+^.*\.pkg\.github\.com$
+^api\.github\.com$
+^codeload\.github\.com$
+^github\.com$
+^raw\.githubusercontent\.com$

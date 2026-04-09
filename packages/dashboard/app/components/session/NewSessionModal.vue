@@ -16,6 +16,7 @@ const machinesStore = useMachinesStore();
 const machineId = ref(props.defaultMachineId ?? '');
 const prompt = ref('');
 const cwd = ref('');
+const tags = ref<string[]>([]);
 const submitting = ref(false);
 const error = ref<string | null>(null);
 
@@ -32,6 +33,8 @@ async function submit(): Promise<void> {
         machineId: machineId.value,
         prompt: prompt.value,
         cwd: cwd.value,
+        // CAP-010: only send tags if the user added any
+        tags: tags.value.length > 0 ? tags.value : undefined,
       }),
     });
 
@@ -45,6 +48,7 @@ async function submit(): Promise<void> {
     emit('update:modelValue', false);
     prompt.value = '';
     cwd.value = '';
+    tags.value = [];
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to create session';
   } finally {
@@ -74,7 +78,23 @@ async function submit(): Promise<void> {
           rows="3"
           class="mb-3"
         />
-        <v-text-field v-model="cwd" label="Working Directory" placeholder="/home/user/project" />
+        <v-text-field
+          v-model="cwd"
+          label="Working Directory"
+          placeholder="/home/user/project"
+          class="mb-3"
+        />
+        <v-combobox
+          v-model="tags"
+          label="Tags"
+          placeholder="Press Enter to add a tag"
+          hint="Optional — used for filtering and policy matching"
+          multiple
+          chips
+          closable-chips
+          clearable
+          persistent-hint
+        />
       </v-card-text>
       <v-card-actions>
         <v-spacer />

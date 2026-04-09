@@ -1,0 +1,99 @@
+# CAP-096 / story 019-001: Tailscale sidecar overlay for self-hosted
+# deployment. Layers on top of the base docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tailscale.yml up -d
+#
+# The hub joins the tailscale container's network namespace so all
+# inbound traffic flows through Tailscale Serve (CAP-097) with an
+# auto-provisioned HTTPS cert. Port 7700 is NOT exposed on the host —
+# access is tailnet-only.
+#
+# CAP-099 / story 019-003: secrets block declares Anthropic API key
+# and GitHub App private key via file-based secrets. Operators drop
+# the files under `./secrets/` (gitignored) or bind-mount from a
+# vault location.
+#
+# CAP-100 / story 019-006: Litestream sidecar is gated behind the
+# `backup` compose profile, opt-in via:
+#   docker compose --profile backup up -d
+
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: claudehq-tailscale
+    hostname: claude-hq
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:claudehq
+      - TS_USERSPACE=false
+    volumes:
+      - ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'tailscale', 'status']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  hub:
+    # Join the tailscale container's network namespace. The hub's own
+    # port mapping is discarded in favor of Tailscale Serve, which
+    # terminates HTTPS at :443 and proxies to 127.0.0.1:7700.
+    network_mode: service:tailscale
+    # Remove `ports` from the base compose — port forwarding is
+    # handled by Tailscale Serve.
+    ports: !reset []
+    depends_on:
+      tailscale:
+        condition: service_healthy
+    secrets:
+      - anthropic_api_key
+      - github_app_private_key
+    environment:
+      # Point the hub at the secret files. The config loader
+      # (CAP-099) reads these if present, falling back to env vars.
+      - ANTHROPIC_API_KEY_FILE=/run/secrets/anthropic_api_key
+      - GITHUB_APP_PRIVATE_KEY_FILE=/run/secrets/github_app_private_key
+
+  # CAP-100 / story 019-006: continuous SQLite replication.
+  # Enable with: docker compose --profile backup up -d
+  litestream:
+    image: litestream/litestream:latest
+    container_name: claudehq-litestream
+    profiles: [backup]
+    command: ['replicate']
+    volumes:
+      - chq-db:/app/data/db:ro
+      - ./litestream.yml:/etc/litestream.yml:ro
+    environment:
+      - LITESTREAM_ACCESS_KEY_ID=${LITESTREAM_ACCESS_KEY_ID:-}
+      - LITESTREAM_SECRET_ACCESS_KEY=${LITESTREAM_SECRET_ACCESS_KEY:-}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+secrets:
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key
+  github_app_private_key:
+    file: ./secrets/github_app_private_key
+
+volumes:
+  ts-state:
+    name: claudehq-ts-state

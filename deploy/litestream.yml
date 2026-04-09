@@ -1,0 +1,33 @@
+# CAP-100 / story 019-006: Litestream config template.
+#
+# Replicates the hub's SQLite DB continuously to an S3-compatible
+# object store (B2, R2, MinIO, and Backblaze all work with `s3`
+# type — just change the endpoint). Activate with:
+#
+#   docker compose --profile backup up -d
+#
+# Credentials come from the `LITESTREAM_ACCESS_KEY_ID` and
+# `LITESTREAM_SECRET_ACCESS_KEY` env vars in docker-compose.tailscale.yml.
+#
+# Restore procedure (example):
+#   litestream restore -o chq.db s3://my-bucket/chq/chq.db
+#
+# Change `<your-bucket>` and the endpoint before first use.
+
+dbs:
+  - path: /app/data/db/chq.db
+    replicas:
+      - type: s3
+        bucket: <your-bucket>
+        path: chq/chq.db
+        # Endpoint examples:
+        #   AWS S3:        (omit — default)
+        #   Backblaze B2:  https://s3.us-west-001.backblazeb2.com
+        #   Cloudflare R2: https://<account-id>.r2.cloudflarestorage.com
+        #   MinIO:         https://minio.internal:9000
+        endpoint: <your-endpoint>
+        region: us-east-1
+        # Keep 24h of snapshots, then hourly for a week, then daily for 30 days.
+        retention: 720h
+        retention-check-interval: 1h
+        snapshot-interval: 24h

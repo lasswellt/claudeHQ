@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSessionsStore } from '../../stores/sessions';
+import StatusIndicator from '../../components/StatusIndicator.vue';
 
 definePageMeta({ layout: 'default' });
 
@@ -13,8 +14,10 @@ const machineFilter = ref<string | null>(null);
 
 onMounted(() => sessionsStore.fetchSessions());
 
+// CAP-010: start from the store's tag-filtered list, then layer
+// search/status/machine filters on top.
 const filteredSessions = computed(() => {
-  let result = sessionsStore.sessions;
+  let result = sessionsStore.filteredSessions;
 
   if (statusFilter.value) {
     result = result.filter((s) => s.status === statusFilter.value);
@@ -102,6 +105,29 @@ function goToSession(id: string): void {
       </v-col>
     </v-row>
 
+    <!-- CAP-010: tag filter pills -->
+    <div v-if="sessionsStore.allTags.length > 0" class="d-flex flex-wrap ga-2 mb-4 align-center">
+      <span class="text-caption text-medium-emphasis mr-2">Tags:</span>
+      <v-chip
+        :color="sessionsStore.selectedTags.length === 0 ? 'primary' : undefined"
+        :variant="sessionsStore.selectedTags.length === 0 ? 'flat' : 'outlined'"
+        size="small"
+        @click="sessionsStore.clearTagFilter()"
+      >
+        All
+      </v-chip>
+      <v-chip
+        v-for="tag in sessionsStore.allTags"
+        :key="tag"
+        :color="sessionsStore.selectedTags.includes(tag) ? 'primary' : undefined"
+        :variant="sessionsStore.selectedTags.includes(tag) ? 'flat' : 'outlined'"
+        size="small"
+        @click="sessionsStore.toggleTag(tag)"
+      >
+        {{ tag }}
+      </v-chip>
+    </div>
+
     <v-skeleton-loader v-if="sessionsStore.loading" type="table" />
 
     <v-data-table
@@ -120,9 +146,7 @@ function goToSession(id: string): void {
       @click:row="(_: unknown, row: { item: { id: string } }) => goToSession(row.item.id)"
     >
       <template #item.status="{ value }">
-        <v-chip :color="statusColor[value as string] ?? 'default'" size="small">
-          {{ value }}
-        </v-chip>
+        <StatusIndicator :status="value as string" size="small" />
       </template>
       <template #item.prompt="{ value }">
         <span class="text-truncate d-inline-block" style="max-width: 400px">{{ value }}</span>

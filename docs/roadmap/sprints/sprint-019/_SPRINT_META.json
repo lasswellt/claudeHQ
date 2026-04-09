@@ -1,0 +1,20 @@
+{
+  "sprintId": "sprint-019",
+  "number": 19,
+  "createdDate": "2026-04-09",
+  "epics": ["E008"],
+  "phase": "R8",
+  "storyCount": 7,
+  "totalPoints": 18,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    { "id": "019-001", "title": "docker-compose.yml Tailscale sidecar + volume", "points": 3 },
+    { "id": "019-002", "title": "ts-config/serve.json + verification", "points": 2 },
+    { "id": "019-003", "title": "Docker secrets + hub config loader", "points": 3 },
+    { "id": "019-004", "title": "Recordings retention sweeper", "points": 2 },
+    { "id": "019-005", "title": "scripts/backup.sh + docs", "points": 2 },
+    { "id": "019-006", "title": "Litestream sidecar compose profile", "points": 3 },
+    { "id": "019-007", "title": "E2E smoke test script", "points": 3 }
+  ]
+}

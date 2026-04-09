@@ -64,7 +64,17 @@ async function startManifestFlow(): Promise<void> {
 
 <template>
   <div>
-    <h1 class="text-h4 font-weight-bold mb-6">GitHub Integration</h1>
+    <div class="d-flex align-center justify-space-between mb-6">
+      <h1 class="text-h4 font-weight-bold">GitHub Integration</h1>
+      <v-btn
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-progress-wrench"
+        to="/settings/github/wizard"
+      >
+        Launch setup wizard
+      </v-btn>
+    </div>
 
     <v-skeleton-loader v-if="loading" type="card" />
 

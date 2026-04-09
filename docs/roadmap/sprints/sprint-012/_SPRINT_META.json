@@ -1,0 +1,21 @@
+{
+  "sprintId": "sprint-012",
+  "number": 12,
+  "createdDate": "2026-04-08",
+  "epics": ["E001"],
+  "phase": "R1",
+  "storyCount": 8,
+  "totalPoints": 26,
+  "breakdown": {
+    "shared": { "stories": 1, "points": 3 },
+    "dashboard": { "stories": 2, "points": 5 },
+    "hub": { "stories": 4, "points": 16 },
+    "qa": { "stories": 1, "points": 2 }
+  },
+  "status": "complete",
+  "completedDate": "2026-04-08",
+  "reviewFindingsResolved": ["HI-01", "HI-03", "HI-04", "HI-05"],
+  "carryForward": {
+    "note": "sprint-011/ is an orphaned draft from before the 2026-04-09 brownfield roadmap refresh. Its REVIEW-FIX stories (011-001 shell-injection etc.) target issues that E007 (Docker Sandbox Hardening) will cover in phase R7; leave in place for reference."
+  }
+}

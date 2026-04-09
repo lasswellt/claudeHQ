@@ -1,0 +1,25 @@
+{
+  "sprintId": "sprint-003",
+  "number": 3,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-011", "EPIC-012", "EPIC-013", "EPIC-014", "EPIC-015"],
+  "storyCount": 10,
+  "totalPoints": 36,
+  "breakdown": {
+    "dashboard": { "stories": 9, "points": 33 },
+    "hub": { "stories": 1, "points": 3 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "003-001", "title": "Nuxt 3 + Vuetify 3 scaffold with layout", "epic": "EPIC-011", "pkg": "dashboard", "points": 5 },
+    { "id": "003-002", "title": "Dashboard WebSocket composable", "epic": "EPIC-012", "pkg": "dashboard", "points": 3 },
+    { "id": "003-003", "title": "Pinia stores — sessions and machines", "epic": "EPIC-014", "pkg": "dashboard", "points": 3 },
+    { "id": "003-004", "title": "Terminal view component with xterm.js", "epic": "EPIC-013", "pkg": "dashboard", "points": 5 },
+    { "id": "003-005", "title": "Terminal input bar component", "epic": "EPIC-013", "pkg": "dashboard", "points": 2 },
+    { "id": "003-006", "title": "Overview page — machine cards + session list", "epic": "EPIC-014", "pkg": "dashboard", "points": 5 },
+    { "id": "003-007", "title": "Session detail page with live terminal", "epic": "EPIC-014", "pkg": "dashboard", "points": 5 },
+    { "id": "003-008", "title": "Machine detail page", "epic": "EPIC-014", "pkg": "dashboard", "points": 3 },
+    { "id": "003-009", "title": "Hub dashboard WS handler with subscriptions", "epic": "EPIC-015", "pkg": "hub", "points": 3 },
+    { "id": "003-010", "title": "Queue page placeholder", "epic": "EPIC-014", "pkg": "dashboard", "points": 2 }
+  ]
+}

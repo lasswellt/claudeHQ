@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useSessionsStore } from '../../stores/sessions';
 import TerminalView from '../../components/terminal/TerminalView.vue';
 import TerminalInput from '../../components/terminal/TerminalInput.vue';
+import SessionEventsTab from '../../components/session/SessionEventsTab.vue';
 
 definePageMeta({ layout: 'default' });
 
@@ -17,6 +18,8 @@ const showResume = ref(false);
 const resumePrompt = ref('');
 const killing = ref(false);
 const resuming = ref(false);
+// CAP-017: terminal / events tab selector.
+const activeTab = ref<'terminal' | 'events'>('terminal');
 
 const isCompleted = computed(() => session.value?.status === 'completed' || session.value?.status === 'failed');
 
@@ -130,9 +133,31 @@ async function resumeSession(): Promise<void> {
         </v-card-text>
       </v-card>
 
-      <!-- Terminal -->
-      <v-card class="mb-4" style="height: 500px">
-        <TerminalView :session-id="sessionId" />
+      <!-- Terminal / Events tabs -->
+      <v-card class="mb-4">
+        <v-tabs v-model="activeTab" density="compact">
+          <v-tab value="terminal">
+            <v-icon start>mdi-console</v-icon>
+            Terminal
+          </v-tab>
+          <v-tab value="events">
+            <v-icon start>mdi-format-list-bulleted</v-icon>
+            Events
+          </v-tab>
+        </v-tabs>
+        <v-divider />
+        <v-window v-model="activeTab">
+          <v-window-item value="terminal">
+            <div style="height: 500px">
+              <TerminalView :session-id="sessionId" />
+            </div>
+          </v-window-item>
+          <v-window-item value="events">
+            <div style="min-height: 500px; max-height: 500px; overflow-y: auto">
+              <SessionEventsTab :session-id="sessionId" />
+            </div>
+          </v-window-item>
+        </v-window>
       </v-card>
 
       <!-- Input -->

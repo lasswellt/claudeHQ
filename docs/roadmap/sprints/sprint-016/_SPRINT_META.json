@@ -1,0 +1,22 @@
+{
+  "sprintId": "sprint-016",
+  "number": 16,
+  "createdDate": "2026-04-09",
+  "epics": ["E005"],
+  "phase": "R5",
+  "storyCount": 9,
+  "totalPoints": 33,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    { "id": "016-001", "title": "Workspace TTL sweeper + max-per-machine cap", "points": 3 },
+    { "id": "016-002", "title": "Pre-flight runner + streaming output", "points": 3 },
+    { "id": "016-003", "title": "Post-flight runner + pass/fail capture", "points": 3 },
+    { "id": "016-004", "title": "Batch jobs API + schema + cascade cancel", "points": 5 },
+    { "id": "016-005", "title": "Batch launcher Nuxt page + concurrency slider", "points": 5 },
+    { "id": "016-006", "title": "Batch detail page with per-repo status table", "points": 3 },
+    { "id": "016-007", "title": "Checks API lifecycle wrapper", "points": 3 },
+    { "id": "016-008", "title": "Workspace/git WS end-to-end wiring", "points": 5 },
+    { "id": "016-009", "title": "E2E batch test", "points": 3 }
+  ]
+}

@@ -30,11 +30,12 @@ export const useApprovalsStore = defineStore('approvals', () => {
     decision: 'approve' | 'deny',
     responseText?: string,
     rememberAsRule?: boolean,
+    editedInput?: string,
   ): Promise<void> {
     const res = await fetch(`/api/approvals/${approvalId}/respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, responseText, rememberAsRule }),
+      body: JSON.stringify({ decision, responseText, rememberAsRule, editedInput }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 

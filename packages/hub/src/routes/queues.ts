@@ -2,8 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DAL } from '../dal.js';
+import type { AuditLogger } from '../audit-log.js';
 
-export async function queueRoutes(app: FastifyInstance, dal: DAL): Promise<void> {
+export async function queueRoutes(
+  app: FastifyInstance,
+  dal: DAL,
+  audit: AuditLogger,
+): Promise<void> {
   // List all queues across machines
   app.get('/api/queues', async () => {
     const machines = dal.listMachines();
@@ -40,6 +45,14 @@ export async function queueRoutes(app: FastifyInstance, dal: DAL): Promise<void>
       priority: body.priority,
     });
 
+    audit.append({
+      action: 'queue.add',
+      entityType: 'queue_task',
+      entityId: id,
+      actor: 'user',
+      details: { machineId: req.params.machineId, priority: body.priority },
+    });
+
     return { id, ...body };
   });
 
@@ -48,6 +61,13 @@ export async function queueRoutes(app: FastifyInstance, dal: DAL): Promise<void>
     '/api/queues/:machineId/:taskId',
     async (req, _reply) => {
       dal.removeQueueTask(req.params.taskId);
+      audit.append({
+        action: 'queue.remove',
+        entityType: 'queue_task',
+        entityId: req.params.taskId,
+        actor: 'user',
+        details: { machineId: req.params.machineId },
+      });
       return { deleted: true };
     },
   );
@@ -60,6 +80,13 @@ export async function queueRoutes(app: FastifyInstance, dal: DAL): Promise<void>
   app.patch<{ Params: { machineId: string } }>('/api/queues/:machineId', async (req) => {
     const body = reorderBody.parse(req.body);
     dal.reorderQueue(req.params.machineId, body.order);
+    audit.append({
+      action: 'queue.reorder',
+      entityType: 'queue',
+      entityId: req.params.machineId,
+      actor: 'user',
+      details: { order: body.order },
+    });
     return { reordered: true };
   });
 }

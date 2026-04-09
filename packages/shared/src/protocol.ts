@@ -1,5 +1,27 @@
 import { z } from 'zod';
-import { sessionRecordSchema, machineRecordSchema, queueTaskSchema, notificationRecordSchema } from './types.js';
+import { sessionRecordSchema, machineRecordSchema, queueTaskSchema, notificationRecordSchema, spawnedAgentRecordSchema } from './types.js';
+import {
+  agentApprovalRequestMsg,
+  hubApprovalDecisionMsg,
+  approvalRequestedMsg,
+  approvalResolvedMsg,
+  approvalCountMsg,
+} from './approvals.js';
+import {
+  hubWorkspaceProvisionMsg,
+  hubWorkspaceCleanupMsg,
+  agentWorkspaceReadyMsg,
+  agentWorkspaceErrorMsg,
+  hubContainerCreateMsg,
+  hubContainerStopMsg,
+  hubContainerRemoveMsg,
+  agentContainerCreatedMsg,
+  agentContainerStartedMsg,
+  agentContainerStdoutMsg,
+  agentContainerExitedMsg,
+  agentContainerStatsMsg,
+  agentContainerErrorMsg,
+} from './workforce.js';
 
 // ── Shared chunk type ───────────────────────────────────────────
 export const outputChunkSchema = z.object({
@@ -71,6 +93,18 @@ export const agentToHubSchema = z.discriminatedUnion('type', [
   agentSessionEndedSchema,
   agentRecordingUploadSchema,
   agentQueueUpdatedSchema,
+  // Approvals (handlers land in E002)
+  agentApprovalRequestMsg,
+  // Workforce / workspace lifecycle
+  agentWorkspaceReadyMsg,
+  agentWorkspaceErrorMsg,
+  // Container orchestration (handlers land in E007)
+  agentContainerCreatedMsg,
+  agentContainerStartedMsg,
+  agentContainerStdoutMsg,
+  agentContainerExitedMsg,
+  agentContainerStatsMsg,
+  agentContainerErrorMsg,
 ]);
 export type AgentToHubMessage = z.infer<typeof agentToHubSchema>;
 
@@ -128,6 +162,15 @@ export const hubToAgentSchema = z.discriminatedUnion('type', [
   hubQueueAddSchema,
   hubQueueRemoveSchema,
   hubQueueReorderSchema,
+  // Approvals
+  hubApprovalDecisionMsg,
+  // Workforce / workspace lifecycle
+  hubWorkspaceProvisionMsg,
+  hubWorkspaceCleanupMsg,
+  // Container orchestration
+  hubContainerCreateMsg,
+  hubContainerStopMsg,
+  hubContainerRemoveMsg,
 ]);
 export type HubToAgentMessage = z.infer<typeof hubToAgentSchema>;
 
@@ -162,12 +205,28 @@ export const notificationSchema = z.object({
   notification: notificationRecordSchema,
 });
 
+export const agentSpawnedSchema = z.object({
+  type: z.literal('agent:spawned'),
+  agent: spawnedAgentRecordSchema,
+});
+
+export const agentRemovedSchema = z.object({
+  type: z.literal('agent:removed'),
+  agentId: z.string(),
+});
+
 export const hubToDashboardSchema = z.discriminatedUnion('type', [
   sessionOutputSchema,
   sessionUpdatedSchema,
   machineUpdatedSchema,
   queueUpdatedSchema,
   notificationSchema,
+  agentSpawnedSchema,
+  agentRemovedSchema,
+  // Approval lifecycle fan-out to dashboards
+  approvalRequestedMsg,
+  approvalResolvedMsg,
+  approvalCountMsg,
 ]);
 export type HubToDashboardMessage = z.infer<typeof hubToDashboardSchema>;
 

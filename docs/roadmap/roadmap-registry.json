@@ -1,0 +1,77 @@
+{
+  "$schema": "roadmap-registry-v1",
+  "generated": "2026-04-09T02:38:11Z",
+  "mode": "full",
+  "research_documents": 7,
+  "capabilities": 104,
+  "domains": 15,
+  "phases": 9,
+  "epics": 9,
+  "estimated_stories": 74,
+  "critical_path_length": 8,
+  "phase_summary": [
+    {
+      "phase": "R1",
+      "name": "Stability & Foundations Finish",
+      "epic_count": 1,
+      "story_estimate": 8,
+      "status": "planned"
+    },
+    {
+      "phase": "R2",
+      "name": "Approvals & Notifications Completeness",
+      "epic_count": 1,
+      "story_estimate": 12,
+      "status": "planned"
+    },
+    {
+      "phase": "R3",
+      "name": "Scheduler & Session Lifecycle Completion",
+      "epic_count": 1,
+      "story_estimate": 9,
+      "status": "planned"
+    },
+    {
+      "phase": "R4",
+      "name": "Cost Tracking & Budgets",
+      "epic_count": 1,
+      "story_estimate": 8,
+      "status": "planned"
+    },
+    {
+      "phase": "R5",
+      "name": "Workforce Completeness",
+      "epic_count": 1,
+      "story_estimate": 9,
+      "status": "planned"
+    },
+    {
+      "phase": "R6",
+      "name": "GitHub Setup Wizard & Rotation",
+      "epic_count": 1,
+      "story_estimate": 7,
+      "status": "planned"
+    },
+    {
+      "phase": "R7",
+      "name": "Docker Sandbox Hardening",
+      "epic_count": 1,
+      "story_estimate": 8,
+      "status": "planned"
+    },
+    {
+      "phase": "R8",
+      "name": "Deployment & Operations",
+      "epic_count": 1,
+      "story_estimate": 7,
+      "status": "planned"
+    },
+    {
+      "phase": "R9",
+      "name": "Completeness Sweep & Docs",
+      "epic_count": 1,
+      "story_estimate": 6,
+      "status": "planned"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "sprintId": "sprint-020",
+  "number": 20,
+  "createdDate": "2026-04-09",
+  "epics": ["E009"],
+  "phase": "R9",
+  "storyCount": 6,
+  "totalPoints": 19,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    {
+      "id": "020-001",
+      "title": "StatusIndicator.vue shared component + Carbon token map",
+      "points": 3
+    },
+    { "id": "020-002", "title": "StatusIndicator rollout across consumers", "points": 3 },
+    { "id": "020-003", "title": "useMachineConditions composable + sparklines", "points": 3 },
+    { "id": "020-004", "title": "Competitive landscape doc", "points": 2 },
+    { "id": "020-005", "title": "Completeness sweep: discover residual ACs", "points": 3 },
+    { "id": "020-006", "title": "Completeness sweep: resolve residual ACs", "points": 5 }
+  ]
+}

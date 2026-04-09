@@ -1,8 +1,10 @@
 import type { WebSocket } from 'ws';
 import type { FastifyInstance } from 'fastify';
+import type Database from 'better-sqlite3';
 import { agentToHubSchema, type HubToAgentMessage } from '@chq/shared';
 import type { DAL } from '../dal.js';
 import { appendRecordingChunks } from '../recordings.js';
+import type { ContainerOrchestrator } from '../container-orchestrator.js';
 
 interface ConnectedAgent {
   machineId: string;
@@ -14,14 +16,21 @@ export class AgentHandler {
   private agents = new Map<string, ConnectedAgent>();
   private offlineTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly dal: DAL;
+  private readonly db: Database.Database;
   private readonly app: FastifyInstance;
   private readonly recordingsPath: string;
   private dashboardBroadcast: ((msg: unknown) => void) | null = null;
+  private orchestrator: ContainerOrchestrator | null = null;
 
-  constructor(app: FastifyInstance, dal: DAL, recordingsPath: string) {
+  constructor(app: FastifyInstance, dal: DAL, db: Database.Database, recordingsPath: string) {
     this.app = app;
     this.dal = dal;
+    this.db = db;
     this.recordingsPath = recordingsPath;
+  }
+
+  setOrchestrator(orchestrator: ContainerOrchestrator): void {
+    this.orchestrator = orchestrator;
   }
 
   setDashboardBroadcast(fn: (msg: unknown) => void): void {
@@ -64,6 +73,23 @@ export class AgentHandler {
               queue: msg.queue,
             });
             break;
+          // CAP-056 / story 016-008: workspace lifecycle messages.
+          // Persist the state transition + mark idle_since so the TTL
+          // sweeper (016-001) can eventually clean up, and fan out to
+          // the dashboard so the workspace view updates live.
+          case 'agent:workspace:ready':
+            this.handleWorkspaceReady(msg);
+            break;
+          case 'agent:workspace:error':
+            this.handleWorkspaceError(msg);
+            break;
+          default:
+            // Approval / container messages are members of the discriminated
+            // union (HI-01 fix) but their handlers land in E002 (approvals)
+            // and E007 (container sandbox). Log and drop so unhandled-but-
+            // valid messages are observable.
+            this.app.log.debug({ type: (msg as { type: string }).type }, 'Unhandled agent message');
+            break;
         }
       } catch (err) {
         this.app.log.warn({ err }, 'Failed to parse agent message');
@@ -73,6 +99,10 @@ export class AgentHandler {
     socket.on('close', () => {
       if (machineId) {
         this.agents.delete(machineId);
+
+        // If this was a spawned container agent, mark it stopped immediately.
+        this.orchestrator?.markStopped(machineId);
+
         // Mark offline after 60s timeout
         const timer = setTimeout(() => {
           this.dal.updateMachineStatus(machineId!, 'offline', Math.floor(Date.now() / 1000));
@@ -130,6 +160,9 @@ export class AgentHandler {
       this.broadcastToDashboard({ type: 'machine:updated', machine: registeredMachine });
     }
 
+    // If this machine ID corresponds to a spawned container agent, promote it to running.
+    this.orchestrator?.markRunning(msg.machineId);
+
     this.app.log.info({ machineId: msg.machineId, version: msg.version }, 'Agent registered');
   }
 
@@ -143,6 +176,16 @@ export class AgentHandler {
       msg.machineId,
       Math.floor(Date.now() / 1000),
       JSON.stringify({ cpuPercent: msg.cpuPercent, memPercent: msg.memPercent, activeSessions: msg.activeSessions }),
+    );
+    // CAP-075 (story 012-005): persist heartbeat into the
+    // machine_health_history time series so the dashboard sparklines
+    // and the workforce scheduler have real data to read.
+    this.app.recordHealthData(
+      msg.machineId,
+      msg.cpuPercent,
+      msg.memPercent,
+      null,
+      msg.activeSessions,
     );
   }
 
@@ -205,6 +248,55 @@ export class AgentHandler {
     if (msg.final) {
       this.app.log.info({ sessionId: msg.sessionId }, 'Recording finalized');
     }
+  }
+
+  // CAP-056 / story 016-008: workspace lifecycle handlers.
+  private handleWorkspaceReady(msg: {
+    workspaceId: string;
+    path: string;
+    branch: string;
+    diskUsageBytes: number;
+  }): void {
+    const now = Math.floor(Date.now() / 1000);
+    this.db
+      .prepare(
+        `UPDATE workspaces
+         SET status = 'ready', path = ?, branch = ?, disk_usage_bytes = ?,
+             last_used_at = ?, idle_since = ?
+         WHERE id = ?`,
+      )
+      .run(msg.path, msg.branch, msg.diskUsageBytes, now, now, msg.workspaceId);
+    // Dashboard subscribers filter by type via onAnyMessage.
+    this.broadcastToDashboard({
+      type: 'workspace:updated',
+      workspaceId: msg.workspaceId,
+      status: 'ready',
+      path: msg.path,
+      branch: msg.branch,
+      diskUsageBytes: msg.diskUsageBytes,
+    });
+    this.app.log.info({ workspaceId: msg.workspaceId, path: msg.path }, 'Workspace ready');
+  }
+
+  private handleWorkspaceError(msg: {
+    workspaceId: string;
+    error: string;
+    phase: string;
+  }): void {
+    this.db
+      .prepare("UPDATE workspaces SET status = 'cleanup' WHERE id = ?")
+      .run(msg.workspaceId);
+    this.broadcastToDashboard({
+      type: 'workspace:updated',
+      workspaceId: msg.workspaceId,
+      status: 'error',
+      error: msg.error,
+      phase: msg.phase,
+    });
+    this.app.log.warn(
+      { workspaceId: msg.workspaceId, error: msg.error, phase: msg.phase },
+      'Workspace error',
+    );
   }
 
   private broadcastToDashboard(msg: unknown): void {

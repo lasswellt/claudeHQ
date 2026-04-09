@@ -46,10 +46,18 @@ function formatTime(ms: number): string {
       {{ replay.error.value }}
     </v-alert>
 
-    <!-- Terminal -->
-    <v-card class="mb-4" style="height: 450px">
-      <v-skeleton-loader v-if="replay.loading.value" type="image" height="450" />
-      <div v-else ref="containerRef" style="width: 100%; height: 100%" />
+    <!-- Terminal — HI-04: container must mount unconditionally so
+         useTerminal can attach to the ref on first mount. The loader
+         is overlaid via v-show so the DOM node persists across state. -->
+    <v-card class="mb-4 position-relative" style="height: 450px">
+      <div ref="containerRef" style="width: 100%; height: 100%" />
+      <v-skeleton-loader
+        v-show="replay.loading.value"
+        type="image"
+        height="450"
+        class="position-absolute"
+        style="top: 0; left: 0; right: 0; bottom: 0"
+      />
     </v-card>
 
     <!-- Controls -->

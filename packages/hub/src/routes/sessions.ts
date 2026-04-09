@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import type { DAL } from '../dal.js';
 import type { AgentHandler } from '../ws/agent-handler.js';
+import type { AuditLogger } from '../audit-log.js';
+import { checkHardStop } from '../costs/hard-stop.js';
 import { streamRecording, getRecordingMeta } from '../recordings.js';
 
 const createSessionBody = z.object({
@@ -10,6 +13,13 @@ const createSessionBody = z.object({
   prompt: z.string().min(1),
   cwd: z.string().min(1),
   flags: z.array(z.string()).optional(),
+  // CAP-010: optional tags on create
+  tags: z.array(z.string().min(1)).optional(),
+  // CAP-070 / story 015-002: per-session budget + timeout controls.
+  // When set, the enforcement sweeper (014-004) terminates the
+  // session if either limit is breached.
+  timeoutSeconds: z.number().int().positive().optional(),
+  maxCostUsd: z.number().nonnegative().optional(),
 });
 
 const sessionInputBody = z.object({
@@ -20,12 +30,20 @@ export async function sessionRoutes(
   app: FastifyInstance,
   dal: DAL,
   agentHandler: AgentHandler,
+  audit: AuditLogger,
+  db: Database.Database,
 ): Promise<void> {
   const sessionStatusSchema = z.enum(['queued', 'running', 'completed', 'failed']).optional();
 
   // List sessions
   app.get<{
-    Querystring: { machine?: string; status?: string; limit?: string; offset?: string };
+    Querystring: {
+      machine?: string;
+      status?: string;
+      tag?: string;
+      limit?: string;
+      offset?: string;
+    };
   }>('/api/sessions', async (req, reply) => {
     const statusResult = sessionStatusSchema.safeParse(req.query.status);
     if (!statusResult.success) {
@@ -34,6 +52,7 @@ export async function sessionRoutes(
     return dal.listSessions({
       machineId: req.query.machine,
       status: statusResult.data,
+      tag: req.query.tag,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
       offset: req.query.offset ? parseInt(req.query.offset, 10) : undefined,
     });
@@ -49,6 +68,19 @@ export async function sessionRoutes(
   // Start new session
   app.post('/api/sessions', async (req, reply) => {
     const body = createSessionBody.parse(req.body);
+
+    // CAP-071 / story 015-004: hard-stop guard. Blocks new sessions
+    // when the monthly budget has been reached AND budget_config
+    // has the hard_stop flag set. Standard HTTP 402.
+    const hardStop = checkHardStop(db);
+    if (hardStop.blocked) {
+      return reply.code(402).send({
+        error: 'Monthly budget reached',
+        detail: hardStop.reason,
+        spentUsd: hardStop.spentUsd,
+        limitUsd: hardStop.limitUsd,
+      });
+    }
 
     // Check machine exists and has agent connected
     const machine = dal.getMachine(body.machineId);
@@ -71,10 +103,26 @@ export async function sessionRoutes(
       cwd: body.cwd,
       flags: body.flags,
       status: 'queued',
+      tags: body.tags,
+      timeoutSeconds: body.timeoutSeconds,
+      maxCostUsd: body.maxCostUsd,
     });
     // Note: SQLite with better-sqlite3 is single-threaded synchronous,
     // so the check+insert above is already atomic within a single Node.js process.
     // If multiple Hub processes ever run against the same DB, use a transaction.
+
+    // CAP-015: audit the successful create
+    audit.append({
+      action: 'session.create',
+      entityType: 'session',
+      entityId: sessionId,
+      actor: 'user',
+      details: {
+        machineId: body.machineId,
+        cwd: body.cwd,
+        tags: body.tags,
+      },
+    });
 
     // Send start command to agent
     const sent = agentHandler.sendToAgent(body.machineId, {
@@ -123,6 +171,14 @@ export async function sessionRoutes(
     });
     // TODO: persist parent_session_id once dal.insertSession / the sessions schema supports it
 
+    audit.append({
+      action: 'session.resume',
+      entityType: 'session',
+      entityId: newSessionId,
+      actor: 'user',
+      details: { parentSessionId: parent.id, claudeSessionId: parent.claude_session_id },
+    });
+
     const sent = agentHandler.sendToAgent(parent.machine_id, {
       type: 'hub:session:resume',
       sessionId: newSessionId,
@@ -151,6 +207,16 @@ export async function sessionRoutes(
     agentHandler.sendToAgent(session.machine_id, {
       type: 'hub:session:kill',
       sessionId: session.id,
+    });
+
+    // CAP-015: audit the kill command (issued even though the actual
+    // status transition happens asynchronously when the agent reports
+    // the process exit).
+    audit.append({
+      action: 'session.kill',
+      entityType: 'session',
+      entityId: session.id,
+      actor: 'user',
     });
 
     return { status: 'kill_sent', sessionId: session.id };

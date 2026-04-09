@@ -24,6 +24,17 @@ export const hubConfigSchema = z.object({
   recordingsPath: z.string().default('./data/recordings'),
   dashboardStaticPath: z.string().optional(),
   logLevel: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  // Agent container spawning
+  agentImage: z.string().default('chq-agent:local'),
+  claudeBinaryHostPath: z.string().optional(),
+  reposPath: z.string().default('/data/repos'),
+  dockerSocketPath: z.string().default('/var/run/docker.sock'),
+  agentNetworkName: z.string().default('chq-internal'),
+  agentDefaultMemoryMb: z.number().default(2048),
+  agentMaxContainers: z.number().default(10),
+  // CAP-047 / story 019-004: recordings retention. 0 disables.
+  recordingsMaxAgeDays: z.number().default(30),
+  recordingsMaxSizeGb: z.number().default(10),
 });
 export type HubConfig = z.infer<typeof hubConfigSchema>;
 

@@ -12,6 +12,7 @@ export default defineConfig({
     '@fastify/websocket',
     '@fastify/static',
     'better-sqlite3',
+    'dockerode',
     'pino',
     'ws',
   ],

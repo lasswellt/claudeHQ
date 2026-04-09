@@ -42,11 +42,29 @@ function formatTokens(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
+
+// CAP-073: CSV export. Triggers a download of the last 30 days of
+// session_costs via the hub's export endpoint.
+function exportCsv(): void {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - 30 * 86400;
+  window.open(`/api/costs/export?from=${from}&to=${to}`, '_blank');
+}
 </script>
 
 <template>
   <div>
-    <h1 class="text-h4 font-weight-bold mb-6">Costs & Budget</h1>
+    <div class="d-flex align-center justify-space-between mb-6">
+      <h1 class="text-h4 font-weight-bold">Costs & Budget</h1>
+      <v-btn
+        variant="tonal"
+        prepend-icon="mdi-download"
+        :disabled="loading"
+        @click="exportCsv"
+      >
+        Export CSV
+      </v-btn>
+    </div>
 
     <v-skeleton-loader v-if="loading" type="card" />
 

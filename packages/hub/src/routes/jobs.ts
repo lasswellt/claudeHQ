@@ -3,6 +3,12 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import type { AgentHandler } from '../ws/agent-handler.js';
+import {
+  planBatch,
+  cancelBatch,
+  batchStatus,
+  isBatchError,
+} from '../workforce/batch-planner.js';
 
 export async function jobRoutes(
   app: FastifyInstance,
@@ -148,38 +154,53 @@ export async function jobRoutes(
     return { retried: true };
   });
 
-  // Batch jobs
+  // CAP-055 / story 016-004: batch jobs (planner-backed).
   const batchBody = z.object({
-    repoIds: z.array(z.string()),
-    prompt: z.string().min(1),
-    autoPr: z.boolean().default(false),
+    repoIds: z.array(z.string()).optional(),
     tags: z.array(z.string()).optional(),
+    prompt: z.string().min(1),
+    branchPrefix: z.string().optional(),
+    maxConcurrency: z.number().int().min(1).max(10).optional(),
+    autoPr: z.boolean().default(false),
+    maxCostUsd: z.number().nonnegative().optional(),
+    timeoutSeconds: z.number().int().positive().optional(),
   });
 
-  app.post('/api/jobs/batch', async (req) => {
-    const body = batchBody.parse(req.body);
-    const created: string[] = [];
+  app.post('/api/jobs/batch', async (req, reply) => {
+    const parsed = batchBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Invalid batch payload', detail: parsed.error.issues });
+    }
 
-    // Use transaction for atomicity — all jobs created or none
-    const batchInsert = db.transaction(() => {
-      for (const repoId of body.repoIds) {
-        const repo = getRepoByIdStmt.get(repoId) as Record<string, unknown> | undefined;
-        if (!repo) continue;
+    const result = planBatch(db, parsed.data);
+    if (isBatchError(result)) {
+      const statusCode = result.error === 'no_repos_matched' ? 404 : 400;
+      return reply.code(statusCode).send(result);
+    }
 
-        const id = randomUUID();
-        const machineId = repo.preferred_machine_id as string | null;
-        if (!machineId) continue;
+    return reply.code(201).send(result);
+  });
 
-        insertJobStmt.run(
-          id, repoId, machineId, body.prompt.slice(0, 100), body.prompt,
-          null, null, null, body.autoPr ? 1 : 0, 0,
-          body.tags ? JSON.stringify(body.tags) : null,
-        );
-        created.push(id);
-      }
-    });
-    batchInsert();
+  // CAP-055 / story 016-006: batch detail page backend.
+  app.get<{ Params: { id: string } }>('/api/jobs/batch/:id', async (req, reply) => {
+    const summary = batchStatus(db, req.params.id);
+    if (summary.total === 0) {
+      return reply.code(404).send({ error: 'Batch not found' });
+    }
+    const jobs = db
+      .prepare(
+        'SELECT id, repo_id, title, status, branch, pr_url, cost_usd, started_at, ended_at FROM jobs WHERE batch_id = ? ORDER BY title',
+      )
+      .all(req.params.id) as Array<Record<string, unknown>>;
+    return { ...summary, jobs };
+  });
 
-    return { created, total: created.length };
+  // Cancel the entire batch — cascades to every non-terminal child job.
+  app.delete<{ Params: { id: string } }>('/api/jobs/batch/:id', async (req, reply) => {
+    const summary = batchStatus(db, req.params.id);
+    if (summary.total === 0) {
+      return reply.code(404).send({ error: 'Batch not found' });
+    }
+    return cancelBatch(db, req.params.id);
   });
 }

@@ -1,10 +1,42 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useTheme } from 'vuetify';
 import NotificationFeed from '../components/notifications/NotificationFeed.vue';
+import { useWebSocket } from '../composables/useWebSocket';
+import { useBrowserNotifications } from '../composables/useBrowserNotifications';
 
 const drawer = ref(true);
 const theme = useTheme();
+
+// HI-05: bind the sidebar connection chip to the real WS state.
+const ws = useWebSocket();
+// CAP-032: subscribe to browser notifications for incoming approvals.
+const browserNotifications = useBrowserNotifications();
+const chipColor = computed(() => {
+  switch (ws.state.value) {
+    case 'connected':
+      return 'success';
+    case 'connecting':
+      return 'warning';
+    case 'disconnected':
+    case 'error':
+    default:
+      return 'error';
+  }
+});
+const chipLabel = computed(() => {
+  switch (ws.state.value) {
+    case 'connected':
+      return 'Connected';
+    case 'connecting':
+      return 'Connecting…';
+    case 'error':
+      return 'Error';
+    case 'disconnected':
+    default:
+      return 'Disconnected';
+  }
+});
 
 const navItems = [
   { title: 'Overview', icon: 'mdi-view-dashboard', to: '/' },
@@ -35,6 +67,23 @@ function toggleTheme(): void {
         <span class="font-weight-light ml-1">HQ</span>
       </v-app-bar-title>
       <v-spacer />
+      <!-- CAP-032: enable browser notifications for approvals -->
+      <v-btn
+        v-if="browserNotifications.supported.value && browserNotifications.permission.value === 'default'"
+        icon="mdi-bell-ring-outline"
+        variant="text"
+        title="Enable browser notifications for approvals"
+        @click="browserNotifications.requestPermission()"
+      />
+      <v-icon
+        v-else-if="browserNotifications.permission.value === 'granted'"
+        class="mr-2"
+        color="success"
+        title="Browser notifications enabled"
+        size="small"
+      >
+        mdi-bell
+      </v-icon>
       <NotificationFeed />
       <v-btn
         :icon="theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
@@ -57,8 +106,8 @@ function toggleTheme(): void {
 
       <template #append>
         <v-list-item class="pa-2">
-          <v-chip color="success" size="small" prepend-icon="mdi-circle-small">
-            Connected
+          <v-chip :color="chipColor" size="small" prepend-icon="mdi-circle-small">
+            {{ chipLabel }}
           </v-chip>
         </v-list-item>
       </template>

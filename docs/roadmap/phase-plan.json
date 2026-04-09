@@ -1,0 +1,274 @@
+{
+  "$schema": "phase-plan-v1",
+  "generated": "2026-04-09T02:38:11Z",
+  "context": "Codebase is in a mature state with sprints 001-011 already delivered. Phases below describe REMAINING work to reach 100% coverage of the 104 capabilities. Capabilities marked 'complete' in gap-analysis.md are not re-scheduled. 'Implemented' capabilities only appear where specific acceptance criteria are outstanding.",
+  "phases": [
+    {
+      "number": "R1",
+      "name": "Stability & Foundations Finish",
+      "description": "Resolve blocking findings from the 2026-03-16 codebase review and ship foundations that unblock every downstream workstream: audit log, machine metrics store, session tags, and the risk classifier.",
+      "capabilities": ["CAP-010", "CAP-015", "CAP-022", "CAP-075"],
+      "review_findings_resolved": [
+        "HI-01 protocol schemas not in discriminatedUnion",
+        "HI-03 approval schemas missing from browser.ts",
+        "HI-04 replay terminal v-else bug",
+        "HI-05 connection status hardcoded"
+      ],
+      "domains": ["session-lifecycle", "observability", "hooks-and-approvals"],
+      "parallel_workstreams": [
+        {
+          "name": "Protocol cleanup",
+          "capabilities": [],
+          "notes": "Fix HI-01, HI-03: add approval/workforce schemas to discriminated unions + browser.ts export"
+        },
+        { "name": "Session tags + migration", "capabilities": ["CAP-010"] },
+        { "name": "Audit log + metrics store", "capabilities": ["CAP-015", "CAP-075"] },
+        {
+          "name": "Risk classifier + dashboard bug fixes",
+          "capabilities": ["CAP-022"],
+          "notes": "Also fix HI-04 replay lifecycle and HI-05 WS status binding"
+        }
+      ],
+      "entry_criteria": ["Current tests pass", "Git clean at start"],
+      "exit_criteria": [
+        "All 4 review blockers resolved",
+        "audit_log table shipped and wired to mutation routes",
+        "machine_metrics time-series table shipped",
+        "sessions.tags column migration applied",
+        "risk classifier produces correct low/medium/high/critical on test fixtures"
+      ]
+    },
+    {
+      "number": "R2",
+      "name": "Approvals & Notifications Completeness",
+      "description": "Close the gap on the approvals workflow: SDK long-poll bridge, three-way decisions with feedback, Approve-and-Remember, AskUserQuestion and MCP elicitation dialog UIs, notification batching/escalation, in-session banner.",
+      "capabilities": [
+        "CAP-025",
+        "CAP-027",
+        "CAP-028",
+        "CAP-030",
+        "CAP-031",
+        "CAP-032",
+        "CAP-033",
+        "CAP-042"
+      ],
+      "domains": ["hooks-and-approvals", "notifications", "dashboard-core"],
+      "parallel_workstreams": [
+        {
+          "name": "SDK canUseTool bridge",
+          "capabilities": ["CAP-025"],
+          "notes": "Long-polling with reconnection — depends on CAP-022 risk classifier from R1"
+        },
+        { "name": "Three-way + remember", "capabilities": ["CAP-027", "CAP-028"] },
+        { "name": "Dialog UIs (AskUserQuestion, MCP)", "capabilities": ["CAP-030", "CAP-031"] },
+        { "name": "Notification channels + batching", "capabilities": ["CAP-032", "CAP-033"] },
+        { "name": "In-session approval banner", "capabilities": ["CAP-042"] }
+      ],
+      "entry_criteria": ["R1 complete", "Risk classifier available"],
+      "exit_criteria": [
+        "Headless SDK sessions route approvals through hub (no auto-deny)",
+        "Approve-and-Remember creates policy rule with provenance",
+        "AskUserQuestion and MCP elicitation dialogs reach acceptance criteria",
+        "Browser and ntfy.sh channels pass integration test",
+        "Notifications batch within a 5s window and escalate by risk"
+      ]
+    },
+    {
+      "number": "R3",
+      "name": "Scheduler & Session Lifecycle Completion",
+      "description": "Fill out session lifecycle gaps: machine capabilities matching, scoring auto-scheduler, timeout + cost enforcement, retry with backoff, SDK session discovery, dual-stream parsing.",
+      "capabilities": ["CAP-011", "CAP-012", "CAP-013", "CAP-014", "CAP-016", "CAP-017"],
+      "domains": ["session-lifecycle"],
+      "parallel_workstreams": [
+        {
+          "name": "Capabilities + scheduler",
+          "capabilities": ["CAP-013", "CAP-014"],
+          "notes": "CAP-013 first, then CAP-014 depends on it"
+        },
+        {
+          "name": "Timeout + cost enforcement",
+          "capabilities": ["CAP-011"],
+          "notes": "Depends on CAP-068 (cost capture) — verify that dependency before starting"
+        },
+        { "name": "Retry with backoff", "capabilities": ["CAP-012"] },
+        { "name": "SDK session discovery + dual-stream", "capabilities": ["CAP-016", "CAP-017"] }
+      ],
+      "entry_criteria": ["R1 complete (metrics store feeds scheduler)"],
+      "exit_criteria": [
+        "Creating a session without machineId succeeds and the scheduler places it atomically",
+        "Sessions exceeding timeout or cost limit terminate with correct reason codes",
+        "Failed queue tasks retry per configured policy with exponential backoff",
+        "Session detail Events tab shows events sourced from dual-stream parser"
+      ]
+    },
+    {
+      "number": "R4",
+      "name": "Cost Tracking & Budgets",
+      "description": "Finish the cost pipeline end-to-end: complete pricing formula, per-query budget enforcement, period thresholds with notifications, upfront token estimator, cost dashboard polish, telemetry export.",
+      "capabilities": ["CAP-069", "CAP-070", "CAP-071", "CAP-072", "CAP-073", "CAP-074"],
+      "domains": ["cost-tracking"],
+      "parallel_workstreams": [
+        { "name": "Pricing + per-query budget", "capabilities": ["CAP-069", "CAP-070"] },
+        {
+          "name": "Period thresholds + notifications",
+          "capabilities": ["CAP-071"],
+          "notes": "Depends on R2 notification batcher"
+        },
+        { "name": "Token counter estimator", "capabilities": ["CAP-072"] },
+        { "name": "Cost dashboard polish + telemetry", "capabilities": ["CAP-073", "CAP-074"] }
+      ],
+      "entry_criteria": [
+        "R2 complete (notification engine ready)",
+        "CAP-068 session cost capture implemented (verify)"
+      ],
+      "exit_criteria": [
+        "Pricing formula matches SDK-reported costs within 1% on contract test",
+        "maxBudgetUsd enforced in SDK call sites and returns correct error subtype",
+        "50/75/90/100% notifications fire idempotently",
+        "Token estimator shows upfront cost in job launcher",
+        "OTel export reaches configured endpoint in test run"
+      ]
+    },
+    {
+      "number": "R5",
+      "name": "Workforce Completeness",
+      "description": "Close gaps in the workforce platform: workspace TTL cleanup, pre/post-flight checks, batch launcher, workspace/git WS message wiring end-to-end, checks API lifecycle, batch launcher UI.",
+      "capabilities": ["CAP-050", "CAP-053", "CAP-055", "CAP-056", "CAP-062", "CAP-066"],
+      "domains": ["workforce", "github-integration", "workforce-dashboard"],
+      "parallel_workstreams": [
+        { "name": "Workspace cleanup + pre/post-flight", "capabilities": ["CAP-050", "CAP-053"] },
+        { "name": "Batch launcher + UI", "capabilities": ["CAP-055", "CAP-066"] },
+        {
+          "name": "Workspace/git protocol wiring",
+          "capabilities": ["CAP-056"],
+          "notes": "Unblocked by HI-01 fix in R1"
+        },
+        { "name": "Checks API lifecycle", "capabilities": ["CAP-062"] }
+      ],
+      "entry_criteria": ["R1 HI-01 resolved"],
+      "exit_criteria": [
+        "Stale workspaces reaped by TTL sweeper in e2e test",
+        "Pre/post-flight output appears in job detail",
+        "Batch launcher creates per-repo jobs with concurrency cap",
+        "Workspace/git WS events surface live in dashboard",
+        "Checks API reports in_progress → completed with conclusion"
+      ]
+    },
+    {
+      "number": "R6",
+      "name": "GitHub Setup Wizard & Rotation",
+      "description": "Ship one-click GitHub App manifest flow, Tailscale Funnel provisioning, and harden credential rotation + PR lifecycle.",
+      "capabilities": ["CAP-057", "CAP-058", "CAP-059", "CAP-060", "CAP-061"],
+      "domains": ["github-integration"],
+      "parallel_workstreams": [
+        { "name": "Manifest wizard + PAT fallback", "capabilities": ["CAP-057", "CAP-058"] },
+        { "name": "Webhook provisioning (Tailscale Funnel)", "capabilities": ["CAP-059"] },
+        {
+          "name": "Credential rotation + PR lifecycle polish",
+          "capabilities": ["CAP-060", "CAP-061"]
+        }
+      ],
+      "entry_criteria": ["R5 complete"],
+      "exit_criteria": [
+        "Manifest flow completes end-to-end in test tailnet",
+        "Tokens auto-rotate via @octokit/auth-app LRU",
+        "Funnel webhook URL validated and signed requests accepted",
+        "PAT fallback surfaces limitations and enables polling mode"
+      ]
+    },
+    {
+      "number": "R7",
+      "name": "Docker Sandbox Hardening",
+      "description": "Finish the auto-accept sandbox story: restricted Docker network with allowlist proxy, pre-pull on agent startup, WSL2 spawn strategy, container stats accuracy, security baseline completeness.",
+      "capabilities": ["CAP-079", "CAP-081", "CAP-082", "CAP-084", "CAP-087", "CAP-089"],
+      "domains": ["docker-sandbox"],
+      "parallel_workstreams": [
+        { "name": "Restricted network + proxy", "capabilities": ["CAP-082"] },
+        { "name": "Security baseline completion", "capabilities": ["CAP-081"] },
+        { "name": "Pre-pull + async setup containers", "capabilities": ["CAP-084", "CAP-089"] },
+        { "name": "WSL2 spawn strategy", "capabilities": ["CAP-079"] },
+        {
+          "name": "Stats reporter accuracy",
+          "capabilities": ["CAP-087"],
+          "notes": "Implement CPU% delta math per research-cache GAP note"
+        }
+      ],
+      "entry_criteria": ["R3 complete"],
+      "exit_criteria": [
+        "Container can reach api.anthropic.com but not arbitrary hosts (e2e test)",
+        "Agent fails startup if claude-code image pull fails",
+        "WSL2 spawn strategy passes SpawnedProcess contract test",
+        "Stats stream reports correct cpuPercent + memoryMB + pids"
+      ]
+    },
+    {
+      "number": "R8",
+      "name": "Deployment & Operations",
+      "description": "Finalize Tailscale sidecar deployment, HTTPS via Tailscale Serve, Docker secrets, SQLite backup strategy, recordings volume retention.",
+      "capabilities": ["CAP-047", "CAP-096", "CAP-097", "CAP-099", "CAP-100"],
+      "domains": ["deploy-infra", "recording-and-replay"],
+      "parallel_workstreams": [
+        { "name": "Tailscale sidecar + Serve", "capabilities": ["CAP-096", "CAP-097"] },
+        { "name": "Docker secrets", "capabilities": ["CAP-099"] },
+        { "name": "SQLite backup + Litestream", "capabilities": ["CAP-100"] },
+        { "name": "Recordings retention", "capabilities": ["CAP-047"] }
+      ],
+      "entry_criteria": ["R6 complete (Funnel URL wiring finalized)"],
+      "exit_criteria": [
+        "docker compose up boots Hub reachable at https://<hostname>.<tailnet>.ts.net",
+        "Secrets mount under /run/secrets with .gitignore enforced",
+        "SQLite backup script or Litestream sidecar validated in test environment",
+        "Recordings older than RECORDINGS_MAX_AGE_DAYS are swept"
+      ]
+    },
+    {
+      "number": "R9",
+      "name": "Completeness Sweep & Docs",
+      "description": "Final polish pass: status indicator system sweep across all views, machine sparklines/conditions finish, competitive landscape doc, any residual acceptance criteria on 'implemented' capabilities.",
+      "capabilities": ["CAP-035", "CAP-038", "CAP-104"],
+      "domains": ["dashboard-core", "docs"],
+      "parallel_workstreams": [
+        { "name": "Status indicator system sweep", "capabilities": ["CAP-038"] },
+        { "name": "Machine sparklines + conditions", "capabilities": ["CAP-035"] },
+        { "name": "Competitive landscape doc", "capabilities": ["CAP-104"] },
+        {
+          "name": "Completeness audit",
+          "capabilities": [],
+          "notes": "Run blitz:completeness-gate and resolve any residual acceptance gaps on capabilities currently marked 'implemented' in gap-analysis.md"
+        }
+      ],
+      "entry_criteria": ["R1-R8 complete"],
+      "exit_criteria": [
+        "Every capability at status=complete in a fresh Phase-2 re-run",
+        "Competitive doc linked from README",
+        "No P1 findings in a fresh blitz:sprint-review"
+      ]
+    }
+  ],
+  "critical_path": [
+    "R1 (protocol cleanup + metrics + audit + risk classifier) ->",
+    "R2 (approvals workflow depends on risk classifier + notification foundations) ->",
+    "R3 (session lifecycle needs metrics for scheduler) ->",
+    "R4 (cost tracking depends on R2 notification engine) ->",
+    "R5 (workforce completion unblocked by R1 protocol cleanup) ->",
+    "R6 (GitHub wizard needs R5's PR lifecycle polish) ->",
+    "R7 (sandbox hardening depends on R3 lifecycle) ->",
+    "R8 (deployment finalization depends on R6 Funnel URL wiring) ->",
+    "R9 (final sweep)"
+  ],
+  "parallelism_notes": [
+    "R1 workstreams are fully independent — maximum parallelism.",
+    "R2, R5, R7 each support 3-4 concurrent workstreams; these are the best targets for multi-agent sprints.",
+    "R3 and R4 share dependencies on R1+R2 but can start in parallel with each other once both entry criteria are met.",
+    "R6 and R7 can run in parallel once R3 and R5 are done (different domains, no shared files)."
+  ],
+  "entry_criteria_global": [
+    "Backed-up roadmap artifacts in docs/roadmap.bak.20260409/",
+    "Current codebase passes type-check, lint, test, and build",
+    "All 4 codebase review blockers (HI-01, HI-03, HI-04, HI-05) scheduled in R1"
+  ],
+  "stop_conditions": [
+    "Any phase that cannot ship its exit criteria after two review cycles should be broken into smaller sub-phases and re-estimated.",
+    "If a capability fails Phase-2 re-assessment as 'not_started' after its owning phase completes, flag as a planning gap."
+  ]
+}

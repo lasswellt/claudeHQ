@@ -4,6 +4,7 @@ import type { SessionRecord, MachineRecord, QueueTask } from '@chq/shared';
 export interface SessionFilters {
   machineId?: string;
   status?: string;
+  tag?: string;
   limit?: number;
   offset?: number;
 }
@@ -42,8 +43,8 @@ export function createDAL(db: Database.Database) {
   // ── Sessions ────────────────────────────────────────────────
 
   const insertSessionStmt = db.prepare(`
-    INSERT INTO sessions (id, machine_id, prompt, cwd, flags, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, machine_id, prompt, cwd, flags, status, tags, timeout_seconds, max_cost_usd, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const getSessionStmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
@@ -166,6 +167,11 @@ export function createDAL(db: Database.Database) {
       cwd: string;
       flags?: string[];
       status?: string;
+      tags?: string[];
+      /** CAP-070: per-session wall-clock timeout in seconds. */
+      timeoutSeconds?: number;
+      /** CAP-070: per-session budget cap in USD. */
+      maxCostUsd?: number;
     }): void {
       insertSessionStmt.run(
         session.id,
@@ -174,6 +180,9 @@ export function createDAL(db: Database.Database) {
         session.cwd,
         session.flags ? JSON.stringify(session.flags) : null,
         session.status ?? 'queued',
+        session.tags && session.tags.length > 0 ? JSON.stringify(session.tags) : null,
+        session.timeoutSeconds ?? null,
+        session.maxCostUsd ?? null,
         Math.floor(Date.now() / 1000),
       );
     },
@@ -195,6 +204,15 @@ export function createDAL(db: Database.Database) {
       if (filters?.status) {
         sql += ' AND status = ?';
         params.push(filters.status);
+      }
+      // CAP-010: filter by tag. SQLite json_each would be cleaner but
+      // better-sqlite3 does not load the json extension by default; the
+      // tag count is small so a substring-style LIKE against the
+      // JSON-encoded array is fast enough and unambiguous because we
+      // always match `"<tag>"`.
+      if (filters?.tag) {
+        sql += ' AND tags LIKE ?';
+        params.push(`%"${filters.tag.replace(/["\\]/g, '\\$&')}"%`);
       }
       sql += ' ORDER BY created_at DESC';
       if (filters?.limit) {
@@ -362,6 +380,7 @@ function parseSessionRow(row: Record<string, unknown>): SessionRecord {
     recording_path: (row.recording_path as string) ?? undefined,
     recording_size_bytes: (row.recording_size_bytes as number) ?? undefined,
     recording_chunk_count: (row.recording_chunk_count as number) ?? undefined,
+    tags: row.tags ? (JSON.parse(row.tags as string) as string[]) : undefined,
     created_at: row.created_at as number,
   };
 }

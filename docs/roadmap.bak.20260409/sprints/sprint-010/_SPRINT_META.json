@@ -1,0 +1,18 @@
+{
+  "sprintId": "sprint-010",
+  "number": 10,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-040", "EPIC-041"],
+  "storyCount": 4,
+  "totalPoints": 16,
+  "breakdown": {
+    "agent": { "stories": 4, "points": 16 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "010-001", "title": "Docker spawn implementation for spawnClaudeCodeProcess", "epic": "EPIC-040", "pkg": "agent", "points": 5 },
+    { "id": "010-002", "title": "Agent execution mode config (native/docker)", "epic": "EPIC-040", "pkg": "agent", "points": 3 },
+    { "id": "010-003", "title": "SSH spawn implementation", "epic": "EPIC-041", "pkg": "agent", "points": 5 },
+    { "id": "010-004", "title": "Devcontainer detection + cloud sandbox docs", "epic": "EPIC-041", "pkg": "agent", "points": 3 }
+  ]
+}

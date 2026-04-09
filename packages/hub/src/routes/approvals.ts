@@ -4,8 +4,14 @@ import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import { classifyRisk } from '../approvals/risk-classifier.js';
 import { evaluatePolicy, seedDefaultRules } from '../approvals/engine.js';
+import type { AuditLogger } from '../audit-log.js';
 
-export async function approvalRoutes(app: FastifyInstance, db: Database.Database): Promise<void> {
+export async function approvalRoutes(
+  app: FastifyInstance,
+  db: Database.Database,
+  audit: AuditLogger,
+  broadcastToDashboard: (msg: unknown) => void,
+): Promise<void> {
   // Seed default policy rules
   seedDefaultRules(db);
 
@@ -169,6 +175,11 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
     decision: z.enum(['approve', 'deny']),
     responseText: z.string().optional(),
     rememberAsRule: z.boolean().optional(),
+    // CAP-027 / story 013-003: three-way decision adds "edit" — the
+    // approver modifies tool_input before approving. The edited JSON
+    // is stored alongside the resolution and sent to the agent so the
+    // tool runs with the reviewer's substitution.
+    editedInput: z.string().optional(),
   });
 
   app.post<{ Params: { id: string } }>('/api/approvals/:id/respond', async (req, reply) => {
@@ -184,8 +195,42 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
       });
     }
 
+    // CAP-027: validate editedInput is syntactically valid JSON (the
+    // tool-specific schema check happens in the UI, but we double-check
+    // at the boundary so malformed payloads never reach the agent).
+    if (body.editedInput !== undefined) {
+      try {
+        JSON.parse(body.editedInput);
+      } catch (e) {
+        return reply.code(400).send({
+          error: 'editedInput is not valid JSON',
+          detail: (e as Error).message,
+        });
+      }
+    }
+
+    // Persist the edited input (if provided) into response_text so the
+    // existing column carries the reviewer's substitution. A dedicated
+    // column would be cleaner but touches the migration chain — revisit
+    // when the approvals schema next evolves.
+    const persistedResponseText =
+      body.editedInput ?? body.responseText ?? null;
     const status = body.decision === 'approve' ? 'approved' : 'denied';
-    resolveApprovalStmt.run(status, 'user', body.responseText ?? null, null, req.params.id);
+    resolveApprovalStmt.run(status, 'user', persistedResponseText, null, req.params.id);
+
+    // CAP-027 / story 013-004: feedback-to-session injection. When a
+    // reviewer denies with a responseText, broadcast it as a synthetic
+    // session:output chunk so the session viewer sees the rejection
+    // reason in-stream. ANSI color makes it visually distinct.
+    if (body.decision === 'deny' && body.responseText && approval.session_id) {
+      const now = Date.now();
+      const bracketed = `\x1b[31m[rejected by reviewer]\x1b[0m ${body.responseText}\n`;
+      broadcastToDashboard({
+        type: 'session:output',
+        sessionId: approval.session_id as string,
+        chunks: [{ ts: now, data: bracketed }],
+      });
+    }
 
     // Create policy rule if "remember" was checked
     if (body.rememberAsRule && body.decision === 'approve' && approval.tool_name) {
@@ -196,7 +241,26 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
         JSON.stringify([approval.tool_name]),
         req.params.id,
       );
+      audit.append({
+        action: 'approval.policy_rule_create',
+        entityType: 'approval_policy_rule',
+        entityId: ruleId,
+        actor: 'user',
+        details: { sourceApprovalId: req.params.id, toolName: approval.tool_name },
+      });
     }
+
+    audit.append({
+      action: 'approval.resolve',
+      entityType: 'approval',
+      entityId: req.params.id,
+      actor: 'user',
+      details: {
+        decision: body.decision,
+        toolName: approval.tool_name ?? null,
+        riskLevel: approval.risk_level ?? null,
+      },
+    });
 
     app.log.info({ approvalId: req.params.id, decision: body.decision }, 'Approval resolved');
     return { status, approvalId: req.params.id };
@@ -215,10 +279,192 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
 
     for (const id of body.approvalIds) {
       const result = resolveApprovalStmt.run(status, 'user', null, null, id);
-      if (result.changes > 0) resolved++;
+      if (result.changes > 0) {
+        resolved++;
+        audit.append({
+          action: 'approval.resolve',
+          entityType: 'approval',
+          entityId: id,
+          actor: 'user',
+          details: { decision: body.decision, bulk: true },
+        });
+      }
     }
 
     return { resolved, total: body.approvalIds.length };
+  });
+
+  // ── SDK canUseTool long-poll bridge ───────────────────────
+  // CAP-025 / stories 013-001 + 013-002: headless SDK sessions post
+  // here when the agent's canUseTool callback fires. The hub creates
+  // (or reuses, via toolUseID idempotency) an approval_requests row
+  // and long-polls until a decision lands or the timeout expires.
+
+  const getApprovalByToolUseStmt = db.prepare(
+    'SELECT * FROM approval_requests WHERE session_id = ? AND tool_use_id = ? LIMIT 1',
+  );
+  const insertSdkApprovalStmt = db.prepare(`
+    INSERT INTO approval_requests
+    (id, session_id, machine_id, request_type, source, tool_name, tool_input,
+     risk_level, status, timeout_seconds, timeout_action, timeout_at, tool_use_id)
+    VALUES (?, ?, ?, 'permission', 'sdk_callback', ?, ?, ?, 'pending', ?, 'deny', ?, ?)
+  `);
+
+  const sdkRequestBody = z.object({
+    sessionId: z.string(),
+    toolUseId: z.string().min(1),
+    toolName: z.string().min(1),
+    toolInput: z.unknown().optional(),
+    /** Optional client-requested timeout in seconds, clamped to [30, 600]. */
+    timeoutSeconds: z.number().optional(),
+  });
+
+  const SDK_MIN_TIMEOUT = 30;
+  const SDK_MAX_TIMEOUT = 600; // 10 min
+  const SDK_POLL_INTERVAL_MS = 500;
+
+  app.post('/api/approvals/sdk/request', async (req, reply) => {
+    const parseResult = sdkRequestBody.safeParse(req.body);
+    if (!parseResult.success) {
+      return reply.code(400).send({ error: 'Invalid SDK approval request', details: parseResult.error.issues });
+    }
+    const body = parseResult.data;
+
+    // Look up session → machine
+    const session = getSessionMachineStmt.get(body.sessionId) as
+      | { machine_id: string }
+      | undefined;
+    if (!session) return reply.code(404).send({ error: 'Session not found' });
+
+    const timeoutSeconds = Math.max(
+      SDK_MIN_TIMEOUT,
+      Math.min(SDK_MAX_TIMEOUT, body.timeoutSeconds ?? 300),
+    );
+
+    // Idempotency: if a row for (sessionId, toolUseId) already
+    // exists, reuse it. This is what makes agent reconnects safe —
+    // the same canUseTool invocation maps to the same row.
+    let approvalRow = getApprovalByToolUseStmt.get(
+      body.sessionId,
+      body.toolUseId,
+    ) as Record<string, unknown> | undefined;
+
+    let approvalId: string;
+    if (approvalRow) {
+      approvalId = approvalRow.id as string;
+    } else {
+      approvalId = randomUUID();
+      const toolInputStr = body.toolInput !== undefined
+        ? JSON.stringify(body.toolInput)
+        : null;
+      const riskLevel = classifyRisk('permission', body.toolName, toolInputStr ?? undefined);
+
+      // Evaluate auto-policy first so we can short-circuit the long
+      // poll entirely when a matching rule exists.
+      const policyResult = evaluatePolicy(db, {
+        requestType: 'permission',
+        toolName: body.toolName,
+        toolInput: toolInputStr ?? undefined,
+        riskLevel,
+      });
+
+      if (policyResult.action === 'auto_approve') {
+        // Insert as already-resolved for audit trail, return immediately.
+        insertSdkApprovalStmt.run(
+          approvalId,
+          body.sessionId,
+          session.machine_id,
+          body.toolName,
+          toolInputStr,
+          riskLevel,
+          timeoutSeconds,
+          Math.floor(Date.now() / 1000) + timeoutSeconds,
+          body.toolUseId,
+        );
+        resolveApprovalStmt.run('approved', 'policy', null, policyResult.ruleId ?? null, approvalId);
+        audit.append({
+          action: 'approval.auto_approve',
+          entityType: 'approval',
+          entityId: approvalId,
+          actor: 'system',
+          details: { source: 'sdk_callback', toolName: body.toolName, ruleId: policyResult.ruleId ?? null },
+        });
+        return { decision: 'approve', approvalId };
+      }
+      if (policyResult.action === 'auto_deny') {
+        insertSdkApprovalStmt.run(
+          approvalId,
+          body.sessionId,
+          session.machine_id,
+          body.toolName,
+          toolInputStr,
+          riskLevel,
+          timeoutSeconds,
+          Math.floor(Date.now() / 1000) + timeoutSeconds,
+          body.toolUseId,
+        );
+        resolveApprovalStmt.run('denied', 'policy', 'Denied by policy rule', policyResult.ruleId ?? null, approvalId);
+        audit.append({
+          action: 'approval.auto_deny',
+          entityType: 'approval',
+          entityId: approvalId,
+          actor: 'system',
+          details: { source: 'sdk_callback', toolName: body.toolName, ruleId: policyResult.ruleId ?? null },
+        });
+        return { decision: 'deny', approvalId, reason: 'Denied by policy rule' };
+      }
+
+      // Otherwise create a pending row and fan out to dashboards.
+      insertSdkApprovalStmt.run(
+        approvalId,
+        body.sessionId,
+        session.machine_id,
+        body.toolName,
+        toolInputStr,
+        riskLevel,
+        timeoutSeconds,
+        Math.floor(Date.now() / 1000) + timeoutSeconds,
+        body.toolUseId,
+      );
+      const fresh = getApprovalStmt.get(approvalId);
+      broadcastToDashboard({ type: 'approval:requested', approval: fresh });
+      approvalRow = fresh as Record<string, unknown>;
+    }
+
+    // Poll for resolution. Single await on a small sleep loop —
+    // avoids threading an EventEmitter through the resolution path.
+    const deadline = Date.now() + timeoutSeconds * 1000;
+    while (Date.now() < deadline) {
+      const current = getApprovalStmt.get(approvalId) as Record<string, unknown> | undefined;
+      if (current && current.status !== 'pending') {
+        const decision = current.status === 'approved' ? 'approve' : 'deny';
+        return {
+          decision,
+          approvalId,
+          editedInput: current.response_text ?? null,
+          responseText: current.response_text ?? null,
+          resolvedBy: current.resolved_by ?? null,
+        };
+      }
+      await new Promise((r) => setTimeout(r, SDK_POLL_INTERVAL_MS));
+    }
+
+    // Timed out — apply timeout_action (default deny).
+    resolveApprovalStmt.run(
+      'timed_out',
+      'timeout',
+      'No decision within timeout window',
+      null,
+      approvalId,
+    );
+    audit.append({
+      action: 'approval.timeout',
+      entityType: 'approval',
+      entityId: approvalId,
+      actor: 'system',
+      details: { toolName: body.toolName, timeoutSeconds },
+    });
+    return { decision: 'deny', approvalId, reason: 'Timed out' };
   });
 
   // ── Policy Rules API ──────────────────────────────────────
@@ -252,12 +498,26 @@ export async function approvalRoutes(app: FastifyInstance, db: Database.Database
       body.action,
     );
 
+    audit.append({
+      action: 'approval_policy.create',
+      entityType: 'approval_policy_rule',
+      entityId: id,
+      actor: 'user',
+      details: { name: body.name, action: body.action, priority: body.priority },
+    });
+
     return { id, ...body };
   });
 
   app.delete<{ Params: { id: string } }>('/api/approval-policies/:id', async (req, reply) => {
     const result = deletePolicyRuleStmt.run(req.params.id);
     if (result.changes === 0) return reply.code(404).send({ error: 'Rule not found' });
+    audit.append({
+      action: 'approval_policy.delete',
+      entityType: 'approval_policy_rule',
+      entityId: req.params.id,
+      actor: 'user',
+    });
     return { deleted: true };
   });
 }

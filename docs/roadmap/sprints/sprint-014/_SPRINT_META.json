@@ -1,0 +1,22 @@
+{
+  "sprintId": "sprint-014",
+  "number": 14,
+  "createdDate": "2026-04-09",
+  "epics": ["E003"],
+  "phase": "R3",
+  "storyCount": 9,
+  "totalPoints": 30,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    { "id": "014-001", "title": "Migration: requirements + retry columns", "points": 2 },
+    { "id": "014-002", "title": "Scheduler score pure module + unit tests", "points": 3 },
+    { "id": "014-003", "title": "Atomic placement transaction", "points": 3 },
+    { "id": "014-004", "title": "Timeout + cost enforcement loop", "points": 3 },
+    { "id": "014-005", "title": "Retry policy re-queue + backoff", "points": 5 },
+    { "id": "014-006", "title": "SDK session discovery wrapper", "points": 3 },
+    { "id": "014-007", "title": "Dual-stream parser in agent", "points": 5 },
+    { "id": "014-008", "title": "Events tab live feed", "points": 3 },
+    { "id": "014-009", "title": "Integration test: scheduler end-to-end", "points": 3 }
+  ]
+}

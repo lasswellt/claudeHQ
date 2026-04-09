@@ -1,0 +1,1886 @@
+{
+  "$schema": "capability-index-v1",
+  "generated": "2026-04-09T02:38:11Z",
+  "source_documents": [
+    {
+      "path": "docs/_research/2026-03-15_docs-audit.md",
+      "type": "architecture",
+      "capabilities_extracted": 10
+    },
+    {
+      "path": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "type": "architecture",
+      "capabilities_extracted": 18
+    },
+    {
+      "path": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "type": "architecture",
+      "capabilities_extracted": 20
+    },
+    {
+      "path": "docs/_research/2026-03-15_approval-request-handling.md",
+      "type": "architecture",
+      "capabilities_extracted": 16
+    },
+    {
+      "path": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "type": "feature_spec",
+      "capabilities_extracted": 17
+    },
+    {
+      "path": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "type": "architecture",
+      "capabilities_extracted": 15
+    },
+    {
+      "path": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "type": "architecture",
+      "capabilities_extracted": 14
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "CAP-001",
+      "title": "Monorepo scaffolding (agent/hub/dashboard/shared)",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "architecture",
+      "description": "pnpm workspace with four packages: agent (PTY/container daemon), hub (Fastify orchestrator), dashboard (Nuxt SPA), shared (types/protocol). Turborepo for build caching. Package boundaries enforced via lint rules.",
+      "user_value": "Foundation layer that lets every downstream capability exist in the correct package with typed cross-package contracts.",
+      "acceptance_criteria": [
+        "pnpm-workspace.yaml lists 4 packages",
+        "turbo.json defines build pipeline",
+        "Package boundary rules enforce shared-only imports",
+        "pnpm build succeeds"
+      ],
+      "complexity": "medium",
+      "domain_hint": "foundation",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-002",
+      "title": "Shared types package with Zod schemas",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "architecture",
+      "description": "packages/shared exports types, Zod schemas, and WebSocket protocol definitions consumed by agent, hub, and dashboard. Single source of truth for protocol contracts.",
+      "user_value": "Eliminates protocol drift between processes; catches schema mismatches at compile time.",
+      "acceptance_criteria": [
+        "shared/src/types.ts exports core entity types",
+        "shared/src/protocol.ts exports Zod schemas for all WS messages",
+        "All packages import from @chq/shared (no duplication)",
+        "Zod .parse() runs on every received message"
+      ],
+      "complexity": "medium",
+      "domain_hint": "foundation",
+      "dependencies_hint": ["CAP-001"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-003",
+      "title": "Node 20+ and Fastify 5.x / @fastify/websocket 11.x version lock",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "nfr",
+      "description": "Root package.json specifies engines.node >=20 (required by better-sqlite3 v12+). Hub package locks to fastify ^5.x and @fastify/websocket ^11.x (raw WebSocket API, not stream).",
+      "user_value": "Prevents subtle runtime errors from version mismatch; team and CI know exact minimum runtime.",
+      "acceptance_criteria": [
+        "Root package.json engines.node >=20",
+        ".nvmrc with v20 LTS",
+        "Hub locks fastify ^5, @fastify/websocket ^11",
+        "WebSocket handlers use raw WebSocket API"
+      ],
+      "complexity": "low",
+      "domain_hint": "foundation",
+      "dependencies_hint": ["CAP-001"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-004",
+      "title": "Hub core server (Fastify + SQLite WAL + health check)",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "Fastify server with pino logger, better-sqlite3 connection in WAL mode, health check endpoint, migration runner. PRAGMAs: journal_mode=WAL, synchronous=NORMAL, cache_size=-20000, mmap_size=268435456, busy_timeout=5000, foreign_keys=ON.",
+      "user_value": "Reliable, durable backend with safe concurrent reads and bounded memory; enables downstream features to persist and serve data.",
+      "acceptance_criteria": [
+        "Hub boots and listens on configured port",
+        "SQLite opens with WAL PRAGMAs applied",
+        "GET /health returns { status, version, uptime }",
+        "Migration runner applies migrations idempotently on startup"
+      ],
+      "complexity": "medium",
+      "domain_hint": "foundation",
+      "dependencies_hint": ["CAP-001", "CAP-003"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-005",
+      "title": "Agent daemon core (PTY pool + WS client + session lifecycle)",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "architecture",
+      "description": "Agent daemon runs on machines, maintains node-pty pool for sessions, reports session lifecycle events to Hub over WebSocket. Handles SessionStart, SessionEnd, Notification, SubagentStart, PreCompact, PostCompact (events that lack HTTP hook support).",
+      "user_value": "Gives Hub real-time visibility into sessions running on remote machines without requiring per-session HTTP plumbing.",
+      "acceptance_criteria": [
+        "Agent maintains WS connection to Hub with heartbeat + reconnect",
+        "PTY sessions can be started, attached, detached, killed",
+        "Lifecycle events are sent as typed protocol messages",
+        "Agent identifies itself with machineId"
+      ],
+      "complexity": "high",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-002", "CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-006",
+      "title": "Binary WebSocket terminal I/O with buffered resume",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "architecture",
+      "description": "Terminal I/O uses binary WS frames with a single-byte channel prefix (0=STDIN, 1=STDOUT, 2=STDERR, 3=error) instead of JSON-wrapped messages. Hub maintains a circular buffer of recent output per session so new viewers and reconnecting clients resume without loss.",
+      "user_value": "Efficient multi-viewer terminal access with seamless reconnection, matching ttyd/Kubernetes patterns.",
+      "acceptance_criteria": [
+        "Terminal frames use channel prefix byte",
+        "Hub buffers last 30min of output per session",
+        "New viewers receive buffered output on connect",
+        "Reconnecting clients resume from last position"
+      ],
+      "complexity": "medium",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-007",
+      "title": "Subscribe/unsubscribe WebSocket semantics",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "architecture",
+      "description": "Dashboard clients send explicit subscribe/unsubscribe messages per resource (session, machine, queue) with optional id. Hub only sends updates for subscribed resources. Follows GitLab Watch Manager pattern.",
+      "user_value": "Dashboard scales to hundreds of sessions without flooding each client with irrelevant updates.",
+      "acceptance_criteria": [
+        "Client sends { type:'subscribe', resource, id? }",
+        "Hub only pushes updates for subscribed ids",
+        "Wildcard subscription (no id) subscribes to all of that resource",
+        "Dashboard auto-(un)subscribes when navigating pages"
+      ],
+      "complexity": "medium",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-002", "CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-008",
+      "title": "session:event WebSocket message type for hook events",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "architecture",
+      "description": "New protocol message { type:'session:event', sessionId, event:{ type, payload, receivedAt } } pushes hook events (tool use, sub-agent, permission request, completion) from Hub to subscribed dashboard clients in real time.",
+      "user_value": "Dashboard Events tab reflects live agent activity without polling.",
+      "acceptance_criteria": [
+        "Hub emits session:event on hook receipt",
+        "Event persisted so Events tab can rebuild history",
+        "Dashboard renders chronological event timeline"
+      ],
+      "complexity": "low",
+      "domain_hint": "observability",
+      "dependencies_hint": ["CAP-007", "CAP-020"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-009",
+      "title": "Session restart, clone, and bulk action endpoints",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "integration_spec",
+      "description": "REST endpoints POST /api/sessions/:id/restart, /clone, and bulk variants POST /api/sessions/bulk/kill, /bulk/clone accepting { sessionIds[], targetMachineId? }. Enables fast re-run and parallel sweeps.",
+      "user_value": "Users can re-run failed sessions or fan out variations without manual re-entry.",
+      "acceptance_criteria": [
+        "Restart kills existing and queues new with same spec",
+        "Clone queues new with identical spec and optional machine override",
+        "Bulk endpoints accept id arrays and return task IDs"
+      ],
+      "complexity": "low",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-010",
+      "title": "Session tags column and tag-based filtering",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "feature_spec",
+      "description": "Add tags TEXT (JSON array) to sessions and queue. API accepts tags on create. Dashboard session list has tag filter pill selector and tag suggestions.",
+      "user_value": "Operators organize sessions by project/type/custom dimension; filter views reduce cognitive load.",
+      "acceptance_criteria": [
+        "Tags column added via migration",
+        "POST /api/sessions accepts tags[]",
+        "List view has tag filter and search"
+      ],
+      "complexity": "low",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-011",
+      "title": "Session timeout and max cost enforcement",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "nfr",
+      "description": "Add timeout_seconds INTEGER and max_cost_usd REAL to sessions/queue. Hub enforces by killing sessions exceeding either limit, marking status failed with reason 'timeout' or 'cost_limit_exceeded'. Checks run on a 5-10s interval.",
+      "user_value": "Prevents runaway costs and stuck sessions.",
+      "acceptance_criteria": [
+        "Columns added via migration",
+        "Enforcement interval kills offenders with correct reason",
+        "Dashboard shows remaining budget and time"
+      ],
+      "complexity": "medium",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005", "CAP-069"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-012",
+      "title": "Retry policy with backoff for queued tasks",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "nfr",
+      "description": "retry_policy TEXT (JSON: {maxRetries, backoffSeconds, retryOnExitCodes?}) on queue/sessions. On failure Hub re-queues if below maxRetries with exponential backoff. Optional exit-code filter.",
+      "user_value": "Automates recovery from transient failures; raises reliability of long workloads.",
+      "acceptance_criteria": [
+        "Task can specify retryPolicy",
+        "Failed task re-queues with backoffSeconds * 2^n",
+        "retryOnExitCodes filter restricts retry",
+        "Session detail shows retry history"
+      ],
+      "complexity": "medium",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-013",
+      "title": "Machine capabilities and task requirements matching",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "architecture",
+      "description": "Machines store capabilities TEXT (JSON array: e.g. 'gpu','repo:my-app','docker:buildx'). Tasks store requirements TEXT. Scheduler filters machines where all task requirements exist in the machine capability set.",
+      "user_value": "Operators pin work to machines with the right resources without manual placement.",
+      "acceptance_criteria": [
+        "Columns added on both tables",
+        "Scheduler filter respects requirements",
+        "Machine card shows capability badges"
+      ],
+      "complexity": "low",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-014"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-014",
+      "title": "Optional machineId with scoring-based auto-scheduler",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "architecture",
+      "description": "machineId becomes optional. When omitted, Hub runs scheduler: filter machines by requirements, then score = (maxSessions - active)*10 + (100 - cpu%) + (100 - mem%) - (queueDepth*5). Highest score wins, atomic placement.",
+      "user_value": "Fire-and-forget workloads without operator knowing which machine has capacity.",
+      "acceptance_criteria": [
+        "Creating a session without machineId succeeds and queues",
+        "Scheduler runs when task moves to running",
+        "Highest-scoring machine chosen atomically",
+        "Fallback behaviour defined when all machines overloaded"
+      ],
+      "complexity": "medium",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-015",
+      "title": "Audit log for mutations",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "operational",
+      "description": "audit_log table: action, entity_type, entity_id, details JSON, created_at. All session/machine/template/scheduled-task mutations and cost-limit enforcement events logged. GET /api/audit-log with filtering.",
+      "user_value": "Compliance, debugging, and security investigations.",
+      "acceptance_criteria": [
+        "Table created",
+        "Mutation paths call audit logger",
+        "Query endpoint supports filtering by entity/action/time"
+      ],
+      "complexity": "low",
+      "domain_hint": "observability",
+      "dependencies_hint": ["CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-016",
+      "title": "Agent SDK session discovery integration",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "integration_spec",
+      "description": "Hub/agent uses @anthropic-ai/claude-agent-sdk query() and listSessions() for session discovery instead of daemon-only polling.",
+      "user_value": "Reliable session enumeration and state queries without polling.",
+      "acceptance_criteria": [
+        "hub/services/agent-sdk-client.ts wraps query/listSessions",
+        "Type defs match latest SDK release",
+        "Discovery endpoint returns SDK-sourced session list"
+      ],
+      "complexity": "medium",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-004"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-017",
+      "title": "Dual-stream parsing: stream-json events + PTY ANSI",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "Claude Code spawned with --output-format stream-json and PTY attached. stdout bifurcated: JSON-lines to event parser (permissionAsked, toolCalled, costUpdated), ANSI to xterm.js. Rivet-inspired pattern but PTY-aware.",
+      "user_value": "Dashboard gets structured events for logic/routing AND rendered terminal for interaction.",
+      "acceptance_criteria": [
+        "Session supports simultaneous stream-json + PTY",
+        "Bifurcation does not corrupt JSON-lines",
+        "Event parser routes typed events to hub",
+        "Terminal still rendered live"
+      ],
+      "complexity": "high",
+      "domain_hint": "session-lifecycle",
+      "dependencies_hint": ["CAP-005", "CAP-006"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-018",
+      "title": "Agent writes hook settings.json targeting hub",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "integration_spec",
+      "description": "Before spawning sessions, agent daemon writes ~/.claude/settings.json configuring PermissionRequest, PreToolUse, and supported HTTP hooks to point at hub's Tailscale URL. Idempotent; preserves user customizations.",
+      "user_value": "Unattended sessions route hook events to hub automatically.",
+      "acceptance_criteria": [
+        "Agent writes settings.json on session setup",
+        "Config targets correct hub URL",
+        "Existing user entries preserved",
+        "Works in PTY and SDK modes"
+      ],
+      "complexity": "medium",
+      "domain_hint": "hooks",
+      "dependencies_hint": ["CAP-005", "CAP-019"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-019",
+      "title": "Hub HTTP hook receivers (PreToolUse, PermissionRequest, TaskCompleted, Stop, etc.)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "integration_spec",
+      "description": "POST /hooks/pre-tool-use, /hooks/permission-request, /hooks/task-completed, and the rest of HTTP-capable events. Per-route receives payload, evaluates policy synchronously, persists approval_requests row, returns decision JSON. Only wires events that actually support HTTP hooks (correcting the earlier docs-audit mistake).",
+      "user_value": "Central policy evaluation and audit for every supported hook event.",
+      "acceptance_criteria": [
+        "Routes implemented for every HTTP-capable event",
+        "Payloads parsed with Zod",
+        "Decisions returned in <timeout>",
+        "Incorrect HTTP-only events explicitly documented as WS-reported"
+      ],
+      "complexity": "medium",
+      "domain_hint": "hooks",
+      "dependencies_hint": ["CAP-004", "CAP-021", "CAP-022"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-020",
+      "title": "Hub SessionStart / SessionEnd / Notification / SubagentStart ingestion via agent WS",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "integration_spec",
+      "description": "Events that do NOT support HTTP hooks are reported by the agent daemon over the existing WebSocket channel. Hub persists them into the same session event log that HTTP hooks feed.",
+      "user_value": "Unified event stream regardless of whether a given hook is HTTP-capable.",
+      "acceptance_criteria": [
+        "Agent sends command-only hook events on WS",
+        "Hub routes them through the same pipeline as HTTP hooks",
+        "Session event log is unified across both paths"
+      ],
+      "complexity": "medium",
+      "domain_hint": "hooks",
+      "dependencies_hint": ["CAP-005", "CAP-019"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-021",
+      "title": "approval_requests table and classification schema",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "architecture",
+      "description": "SQLite approval_requests with id, session_id, request_type (permission|ask_user|plan_approval|mcp_elicitation|mcp_auth), tool_name, tool_input JSON, context, status (pending|approved|denied|timed_out|cancelled|error), risk_level, source, timeout_at, resolved_at, resolved_by, rule_id. Indexes on session_id, status, timeout_at.",
+      "user_value": "Persistent audit trail and queryable queue for all approval flows.",
+      "acceptance_criteria": [
+        "Table and enums created",
+        "Indexes present",
+        "Migration applied idempotently"
+      ],
+      "complexity": "low",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-022",
+      "title": "Risk classifier for approval requests",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "architecture",
+      "description": "approvals/risk-classifier.ts assigns low|medium|high|critical based on tool + input pattern. Read/Glob/Grep→low, Write/Edit→medium, Bash→high, dangerous patterns (rm -rf, sudo, curl|bash)→critical, MCP→high.",
+      "user_value": "Enables intelligent routing and timeout escalation based on real risk rather than blanket rules.",
+      "acceptance_criteria": [
+        "Classifier module with unit tests",
+        "Pattern library covers dangerous bash",
+        "Integration into request-creation path"
+      ],
+      "complexity": "low",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-021"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-023",
+      "title": "Policy engine with approval_policy_rules table",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "architecture",
+      "description": "approval_policy_rules with priority ordering, matching on tool_name/bash_pattern/path_glob/session_tag/machine_id/risk_level, action enum auto_approve|auto_deny|require_approval. Default-deny for bash, auto-approve read-only ops. Rules creatable via API, Dashboard, or from user 'Approve & Remember'.",
+      "user_value": "Admins standardize auto-approval for safe ops and force review of risky ones centrally.",
+      "acceptance_criteria": [
+        "Table + matching engine implemented",
+        "Default shipped rules load on first boot",
+        "Priority-ASC first-match-wins evaluation",
+        "Bash pattern and glob validators"
+      ],
+      "complexity": "high",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-021", "CAP-022"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-024",
+      "title": "Approval timeout sweeper",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "architecture",
+      "description": "Hub background interval (every 10s) that finds approval_requests with timeout_at<=now and applies timeout_action (default auto_deny, optionally auto_approve for trusted sessions). Defaults: 60s/300s/600s by risk, 30m for ask_user.",
+      "user_value": "Sessions don't hang indefinitely when reviewers are unavailable.",
+      "acceptance_criteria": [
+        "Sweeper runs every 10s",
+        "Expired requests resolved with configured action",
+        "Logs reflect timeout resolution"
+      ],
+      "complexity": "low",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-021"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-025",
+      "title": "SDK canUseTool bridge (long-polling to hub)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "integration_spec",
+      "description": "approval-bridge.ts wraps the SDK canUseTool callback: POSTs to hub /api/approvals, long-polls (5-10 min) until decision, retries with backoff on disconnect. Enables SDK/headless sessions (no interactive hooks) to route approvals through the same pipeline.",
+      "user_value": "Queued/background jobs participate in the central approval workflow instead of auto-denying.",
+      "acceptance_criteria": [
+        "canUseTool callback POSTs to hub with tool payload",
+        "Hub long-polls until decision",
+        "Disconnect triggers reconnection with backoff",
+        "Policy rules apply the same way as HTTP hook path"
+      ],
+      "complexity": "high",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-021", "CAP-023", "CAP-026"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-026",
+      "title": "Approval API endpoints (single + bulk CRUD)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "integration_spec",
+      "description": "POST /api/approvals/:id/respond, POST /api/approvals/bulk/respond, GET /api/approvals (filter by status, session), GET /api/approvals/:id. Decision enum approve|deny|edit with optional responseText, responseData, rememberAsRule.",
+      "user_value": "Dashboard and external tools can act on approvals, including bulk decisions.",
+      "acceptance_criteria": [
+        "All endpoints implemented and typed",
+        "Bulk endpoint returns affected records",
+        "Invalid decisions rejected with 400"
+      ],
+      "complexity": "low",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-021"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-027",
+      "title": "Three-way approval decision (approve/edit/reject with feedback)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "feature_spec",
+      "description": "Detail drawer has three actions: Approve (execute as-is), Edit (modify tool_input then execute), Reject (deny with feedback text that is injected back to Claude as a system message).",
+      "user_value": "Users steer Claude precisely instead of binary approve/deny.",
+      "acceptance_criteria": [
+        "Edit validates edited input against tool schema",
+        "Reject feedback appears in session as system message",
+        "Edit action logged separately from approve"
+      ],
+      "complexity": "medium",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-026", "CAP-042"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-028",
+      "title": "Approve-and-Remember rule creation flow",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "feature_spec",
+      "description": "Checkbox on approve action. If checked, shows rule preview (tool, glob, bash pattern) and saves an approval_policy_rules row with created_from_approval_id. Future matching requests auto-approve.",
+      "user_value": "Policy rules grow organically from real decisions; reduces approval fatigue.",
+      "acceptance_criteria": [
+        "Checkbox + rule preview UI",
+        "Rule saved correctly",
+        "Future matches auto-resolved with rule_id logged"
+      ],
+      "complexity": "medium",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-023", "CAP-042"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-029",
+      "title": "Typed permission replies (once/always/reject)",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "feature_spec",
+      "description": "Replace binary approve/deny with three session-scoped replies: once (approve single action), always (remember for remainder of session), reject. Rivet-inspired pattern; session-local only (not persisted across sessions).",
+      "user_value": "Fine-grained control without repetitive approvals.",
+      "acceptance_criteria": [
+        "UI exposes all three buttons",
+        "always cache per (session,tool) honored for rest of session",
+        "does NOT persist across sessions"
+      ],
+      "complexity": "medium",
+      "domain_hint": "approvals",
+      "dependencies_hint": ["CAP-026"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-030",
+      "title": "AskUserQuestion dialog UI",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "brand_ux",
+      "description": "Chat-bubble dialog for Claude's AskUserQuestion requests. Renders Claude's question with either multiple-choice buttons or text input; submits response via approval API.",
+      "user_value": "Natural conversation flow instead of formal approval UI for clarifying questions.",
+      "acceptance_criteria": [
+        "Multiple-choice buttons or text field per question type",
+        "Auto-deny after 30m timeout",
+        "Chat-like styling"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-026", "CAP-042"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-031",
+      "title": "MCP elicitation dialog UI (JSON-Schema form)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "brand_ux",
+      "description": "Dynamic form rendered from MCP elicitation JSON Schema. Supports text, select, checkbox, date. URL-based auth opens embedded browser or link. Response validated against schema before submission.",
+      "user_value": "Authenticate with MCP servers or provide structured input without terminal forms.",
+      "acceptance_criteria": [
+        "JSON Schema → form renderer implemented",
+        "Validation runs before submit",
+        "URL mode opens auth flow"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-026", "CAP-042"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-032",
+      "title": "Notification routing engine (dashboard/browser/Slack/Discord/ntfy.sh)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "architecture",
+      "description": "Multi-layer notification delivery: dashboard toast (instant, sound for critical), browser Notification API with action buttons, Slack/Discord webhooks with rich blocks, ntfy.sh push. Per-channel templates and per-user preferences.",
+      "user_value": "Users alerted via preferred channel; critical interrupts immediately.",
+      "acceptance_criteria": [
+        "All five channels implemented",
+        "Slack Block Kit uses approve/deny buttons deep-linking to dashboard",
+        "ntfy.sh supports self-hosted topic",
+        "Per-user preferences stored and respected"
+      ],
+      "complexity": "high",
+      "domain_hint": "notifications",
+      "dependencies_hint": ["CAP-021"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-033",
+      "title": "Notification batching and risk-based escalation",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "feature_spec",
+      "description": "Requests arriving within 5s of each other grouped into one notification. Escalation: critical→urgent immediately, high+age>30s→high, medium+age>60s→normal, low→badge only. Default timeouts per risk align with sweeper.",
+      "user_value": "Avoids notification storms while ensuring critical items always interrupt.",
+      "acceptance_criteria": [
+        "5s batching window enforced",
+        "Escalation rules implemented",
+        "Default timeouts match risk levels"
+      ],
+      "complexity": "medium",
+      "domain_hint": "notifications",
+      "dependencies_hint": ["CAP-032", "CAP-022"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-034",
+      "title": "Dashboard overview page (Z-pattern summary + machines + activity)",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "brand_ux",
+      "description": "Fleet overview: summary cards (running/queued sessions, online machines, daily cost, tokens), machine cards grid, recent activity feed. Z-pattern layout, live WS updates.",
+      "user_value": "Operator snapshot of fleet health, resource usage, and recent events at a glance.",
+      "acceptance_criteria": [
+        "Summary cards auto-update from WS",
+        "Machine cards render all machines",
+        "Activity feed shows last ~20 events",
+        "Layout follows Z-pattern"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-007", "CAP-035"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-035",
+      "title": "Machine cards with health conditions, capacity bar, sparklines",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "brand_ux",
+      "description": "Machine cards display status dot (Ready/NotReady), warning badges (MemoryPressure/DiskPressure/SessionPressure), session slots progress bar, queue depth, CPU/memory sparklines (last 30min). Heartbeat timeout = 60s triggers NotReady.",
+      "user_value": "Instant assessment of machine health and capacity without drilling in.",
+      "acceptance_criteria": [
+        "Conditions derived from metrics and heartbeat",
+        "Sparklines render 30min of data",
+        "Badges fire at defined thresholds"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-013", "CAP-075"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-036",
+      "title": "Machine context switcher in sidebar",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "brand_ux",
+      "description": "Cockpit-style dropdown in sidebar listing all machines with status indicator. Selecting scopes session/queue views to that machine without full reload.",
+      "user_value": "Rapid context switching between machines.",
+      "acceptance_criteria": [
+        "Dropdown lists all machines",
+        "Selection scopes downstream views",
+        "No page reload required"
+      ],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-035"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-037",
+      "title": "Session list view with inline actions and bulk",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "brand_ux",
+      "description": "Data table: ID/Name, Status badge, Duration, Machine, Tokens/Cost, Age. Inline icons for Open Terminal/Logs/Kill/Clone. Checkboxes with bulk action bar; 'select all' scoped to current page.",
+      "user_value": "One-click access to any session's terminal/logs/actions without navigation.",
+      "acceptance_criteria": [
+        "Table with all specified columns",
+        "Inline icons wired to actions",
+        "Bulk actions use /api/sessions/bulk endpoints",
+        "Search + status + machine filters"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-009", "CAP-038"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-038",
+      "title": "Session status indicator visual system (Carbon pattern)",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "brand_ux",
+      "description": "Carbon-inspired status pattern: color + icon + text for Queued/Blocked/Running/Waiting for Input/Completed/Failed/Cancelled. WCAG AA contrast; pulsing animation respects prefers-reduced-motion.",
+      "user_value": "Instant state recognition; accessible; consistent across views.",
+      "acceptance_criteria": [
+        "All seven states share a shared component",
+        "Color+icon+text for accessibility",
+        "prefers-reduced-motion honored"
+      ],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-039",
+      "title": "Session detail view (tabbed: Overview/Terminal/Logs/Events/Stats)",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "brand_ux",
+      "description": "Tabbed detail page. Overview shows metadata, Terminal embeds xterm.js with live I/O, Logs supports search + follow, Events renders hook timeline, Stats plots token velocity / cost / context window. Tabs persist scroll across switches.",
+      "user_value": "Complete visibility into what happened in a session.",
+      "acceptance_criteria": [
+        "All five tabs implemented",
+        "Terminal hooked to binary WS",
+        "Events pull from session event log",
+        "Stats show live and historical values"
+      ],
+      "complexity": "high",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-006", "CAP-008", "CAP-069", "CAP-075"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-040",
+      "title": "xterm.js v6 scoped package migration",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "nfr",
+      "description": "Replace unscoped xterm / xterm-addon-* imports with @xterm/xterm, @xterm/addon-fit, @xterm/addon-webgl, @xterm/addon-serialize. Canvas addon removed — fallback path is DOM renderer.",
+      "user_value": "Unblocks current xterm.js version and avoids build/runtime failures.",
+      "acceptance_criteria": [
+        "All imports updated",
+        "Fallback docs reference DOM renderer",
+        "Build passes without unscoped imports"
+      ],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-041",
+      "title": "Approval queue dashboard page (/approvals)",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "brand_ux",
+      "description": "Approvals table: Risk badge, Session, Tool, Input summary, Age countdown, Approve/Deny actions. Bulk 'Approve All Low-Risk' / 'Deny All' / 'Approve Selected'. Sort by age or risk. Keyboard shortcuts (A=approve, D=deny). Mobile card layout.",
+      "user_value": "Efficient review queue for unattended sessions.",
+      "acceptance_criteria": [
+        "Queue table with required columns",
+        "Bulk actions wired to bulk respond endpoint",
+        "Keyboard shortcuts",
+        "Mobile responsive"
+      ],
+      "complexity": "high",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-022", "CAP-026"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-042",
+      "title": "In-session approval banner",
+      "source_document": "docs/_research/2026-03-15_approval-request-handling.md",
+      "document_type": "brand_ux",
+      "description": "Sticky banner on session view listing session's pending approvals with risk badge, tool name, input summary, countdown, quick Approve/Deny, 'Approve All Safe' / 'Deny All'. Collapsible when out of focus.",
+      "user_value": "Handle session-scoped approvals without leaving the terminal view.",
+      "acceptance_criteria": [
+        "Banner shows pending approvals only for current session",
+        "Quick actions work",
+        "Collapsible toggle"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-026", "CAP-039"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-043",
+      "title": "Session templates with variable substitution",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "feature_spec",
+      "description": "templates table with name, description, icon, prompt (supports {{variables}}), cwd, flags, machine_id, requirements, timeout_seconds, max_cost_usd, variables JSON, tags. New Session modal has template picker gallery; selected template renders variable form; substitution at launch.",
+      "user_value": "Parameterize common workflows (Review PR, Run Tests); share across team.",
+      "acceptance_criteria": [
+        "Table + endpoints",
+        "Gallery + variable form in New Session modal",
+        "{{var}} substitution at launch"
+      ],
+      "complexity": "high",
+      "domain_hint": "templates",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-044",
+      "title": "Scheduled tasks (cron with K8s concurrency policies)",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "feature_spec",
+      "description": "scheduled_tasks table with cron_expression, prompt, cwd, flags, machine_id/requirements, timeout/max_cost, concurrency_policy (allow|forbid|replace), enabled, last/next_run_at. Hub evaluates expressions and enqueues sessions at scheduled times.",
+      "user_value": "Time-based automation (backups, reports, maintenance) without external cron.",
+      "acceptance_criteria": [
+        "Table + CRUD endpoints",
+        "Scheduler enqueues at configured times",
+        "Concurrency policies respected",
+        "Dashboard shows next/last run"
+      ],
+      "complexity": "high",
+      "domain_hint": "templates",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-045",
+      "title": "Session recording persistence (NDJSON + transcript.jsonl)",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "feature_spec",
+      "description": "Agent persists full NDJSON session transcript (assistant/user/tool messages) plus terminal frame log. Transcript file written append-only to recordings volume: /var/recordings/<session>.jsonl.",
+      "user_value": "Reviewers and replay depend on a complete transcript.",
+      "acceptance_criteria": [
+        "Transcript file written per session",
+        "Append-only, no locking",
+        "GET /api/sessions/:id/transcript returns JSONL"
+      ],
+      "complexity": "medium",
+      "domain_hint": "recording",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-046",
+      "title": "Session recording playback with xterm.js serialize addon",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "feature_spec",
+      "description": "Dashboard replay player embeds xterm.js with serialize addon, streams transcript.jsonl, scrub bar seeks by event timestamp, show message metadata inline with terminal.",
+      "user_value": "Reviewers see exactly what happened in a session without re-running it.",
+      "acceptance_criteria": [
+        "Replay page loads transcript",
+        "Scrub/seek works without desync",
+        "Events overlay visible alongside terminal"
+      ],
+      "complexity": "high",
+      "domain_hint": "recording",
+      "dependencies_hint": ["CAP-045"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-047",
+      "title": "Recordings volume with retention policy",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "operational",
+      "description": "Separate named volume recordings:/app/data/recordings. Hub periodically deletes recordings older than RECORDINGS_MAX_AGE_DAYS. Independent backup schedule from database.",
+      "user_value": "Bounded disk usage without manual cleanup.",
+      "acceptance_criteria": [
+        "Volume mounted separately",
+        "Retention sweeper runs on schedule",
+        "Disk alerts configurable"
+      ],
+      "complexity": "low",
+      "domain_hint": "recording",
+      "dependencies_hint": ["CAP-045"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-048",
+      "title": "Repo registry (repos table + CRUD + auto-detect)",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "repos table with url, name, owner, default_branch, auth_method, dependency_manager, node_version, setup_commands, pre/post_flight_commands, env_vars, tags. Endpoints: list/create/get/update, import from GitHub URL with auto-detect, detect (scan lockfile/.nvmrc/devcontainer), sync (git fetch).",
+      "user_value": "Register a repo once and reuse across many jobs.",
+      "acceptance_criteria": [
+        "Table + migrations",
+        "All endpoints typed",
+        "Auto-detect handles lockfile/.nvmrc/devcontainer"
+      ],
+      "complexity": "medium",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-049",
+      "title": "Job model and state machine",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "jobs table with repo_id, workspace_id, machine_id, title, prompt, branch, pr_number, cost_usd, tokens_used, files_changed, tests_passed, state (pending|provisioning|preparing|running|post_processing|completed|failed|cancelled). sessions.job_id FK. Endpoints create/list/detail/retry/cancel.",
+      "user_value": "Track multi-step work per repo with full lifecycle visibility.",
+      "acceptance_criteria": [
+        "Table + enum states",
+        "Endpoints implemented and typed",
+        "sessions.job_id FK added via migration"
+      ],
+      "complexity": "medium",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-048"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-050",
+      "title": "Workspace manager (provisioning + cleanup)",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "workspaces table with status (creating|preparing|ready|active|stale|cleanup|deleted), path, repo_id, branch, is_worktree, disk_usage_bytes, deps_installed_at, expires_at. Agent provisioner handles clone/worktree/setup commands. TTL-based cleanup, max workspaces per machine.",
+      "user_value": "Efficient isolated workspaces per repo with automated cleanup.",
+      "acceptance_criteria": [
+        "Table + provisioner state machine",
+        "Lifecycle messages to hub",
+        "TTL sweeper"
+      ],
+      "complexity": "high",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-048", "CAP-051"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-051",
+      "title": "Git worktree lifecycle management",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "Agent manages per-job git worktrees: clone repo once per repoId, add worktree at /data/repos/<repoId>/worktrees/<workspaceId> -b chq/<jobId>/<slug> origin/<branch>. Commits and pushes from worktree. Periodic git worktree prune for orphans.",
+      "user_value": "Parallel agents on same repo without lock contention; shared .git reduces disk overhead.",
+      "acceptance_criteria": [
+        "Worktree add/remove from agent",
+        "Branch naming convention enforced",
+        "Prune runs periodically",
+        "Handles worktree removal failures gracefully"
+      ],
+      "complexity": "high",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-048"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-052",
+      "title": "Environment resolver (package manager + node version detection)",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "Agent module detects pnpm/yarn/npm lockfile, python (uv/pip), go mod, cargo. Reads .nvmrc for node version, uses fnm/asdf. Uses @unjs/nypm for detection.",
+      "user_value": "Plug-and-play execution across heterogeneous codebases.",
+      "acceptance_criteria": [
+        "Detection returns {packageManager,command,version}",
+        "Integrated into workspace provisioner",
+        "Supports JS/Python/Go/Rust primary stacks"
+      ],
+      "complexity": "medium",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-050"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-053",
+      "title": "Pre-flight and post-flight check system",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "feature_spec",
+      "description": "Repo config stores pre_flight_commands and post_flight_commands. Agent runs pre-flights after setup; failure marks workspace failed and aborts job. Post-flights run after Claude Code exits. Output captured with pass/fail status.",
+      "user_value": "Baseline quality gates (type check, unit tests) validated before human review.",
+      "acceptance_criteria": [
+        "Repo model fields",
+        "Agent executes commands and streams output",
+        "Failure path transitions job to failed",
+        "Job detail shows pre/post output"
+      ],
+      "complexity": "medium",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-048", "CAP-050"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-054",
+      "title": "Secret management via env: and file: references",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "nfr",
+      "description": "Repo config stores secret_env_refs: JSON mapping var names to env:SOURCE or file:/path. Agent resolves at runtime and passes to Claude Code process. Future: vault:, 1password:// scheme. Path traversal guarded.",
+      "user_value": "Secrets stay on agent machines; hub has no sensitive data; auditable access.",
+      "acceptance_criteria": [
+        "env: and file: prefixes supported",
+        "Resolution runs in agent, not hub",
+        "Path escape prevented"
+      ],
+      "complexity": "high",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-048", "CAP-050"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-055",
+      "title": "Batch job launcher (multi-repo orchestration)",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "feature_spec",
+      "description": "POST /api/jobs/batch with repoIds or tags filter, shared prompt, branchPrefix, maxConcurrency. Creates job per repo, respects concurrency, supports cancel-all.",
+      "user_value": "Run the same task across many repos with centralized progress tracking.",
+      "acceptance_criteria": [
+        "Endpoint implemented",
+        "Concurrency cap honored",
+        "Cancel-all propagates to child jobs"
+      ],
+      "complexity": "medium",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-049"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-056",
+      "title": "WebSocket protocol for workspace and git status",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "integration_spec",
+      "description": "Add protocol messages: hub:workspace:provision, hub:workspace:cleanup, agent:workspace:{cloning|preparing|ready|error|cleaned}, agent:git:{status|committed|pushed}. Zod-validated.",
+      "user_value": "Real-time workspace lifecycle and git events power dashboard updates and job orchestration.",
+      "acceptance_criteria": [
+        "All message types added to shared protocol",
+        "Hub routes and persists each event type",
+        "Dashboard reflects events live"
+      ],
+      "complexity": "low",
+      "domain_hint": "workforce",
+      "dependencies_hint": ["CAP-002"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-057",
+      "title": "GitHub App manifest flow wizard",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "integration_spec",
+      "description": "Dashboard 'Connect to GitHub' button submits manifest JSON to github.com/settings/apps/new. Hub receives callback code, exchanges for app credentials, stores encrypted. Installation callback redirects user to install page.",
+      "user_value": "3-click GitHub connection instead of 15-step manual setup.",
+      "acceptance_criteria": [
+        "Manifest POST from dashboard",
+        "Callback handler exchanges code for credentials",
+        "Installation redirect works end-to-end",
+        "Success page verifies with test API call"
+      ],
+      "complexity": "medium",
+      "domain_hint": "github-integration",
+      "dependencies_hint": ["CAP-059", "CAP-060"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-058",
+      "title": "Fine-grained PAT fallback for GitHub",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "integration_spec",
+      "description": "Alternate setup path for users without public HTTPS: user pastes fine-grained PAT with required scopes (contents, pull_requests, issues, checks, actions, metadata). No webhooks, no Checks API; polling fallback instead.",
+      "user_value": "Single-user dev setups without Tailscale Funnel can still connect GitHub.",
+      "acceptance_criteria": [
+        "PAT option in setup wizard",
+        "Scope requirements shown",
+        "Limitations clearly documented",
+        "Polling mode engaged when PAT used"
+      ],
+      "complexity": "medium",
+      "domain_hint": "github-integration",
+      "dependencies_hint": ["CAP-057"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-059",
+      "title": "Tailscale Funnel webhook endpoint provisioning",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "operational",
+      "description": "Hub webhook endpoint exposed via Tailscale Funnel as https://<hostname>.<tailnet>.ts.net/webhooks/github. Webhook secret stored and validated on incoming requests.",
+      "user_value": "Public HTTPS URL for GitHub webhooks without ngrok or Cloudflare Tunnel.",
+      "acceptance_criteria": [
+        "Tailscale Funnel configured for Hub webhook port",
+        "Manifest references correct Funnel URL",
+        "Webhook signature validated"
+      ],
+      "complexity": "low",
+      "domain_hint": "github-integration",
+      "dependencies_hint": ["CAP-077"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-060",
+      "title": "GitHub credential storage with token auto-rotation",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "Encrypted storage of GitHub App private key. @octokit/auth-app for per-installation Octokit clients. LRU cache (up to 15,000) with 60-min token TTL, refresh at 59-min, JWT iat 30s in past for clock drift.",
+      "user_value": "Protected credentials with automatic token rotation.",
+      "acceptance_criteria": [
+        "PEM encrypted at rest",
+        "auth-app integrated",
+        "LRU + rotation working",
+        "No credentials in logs"
+      ],
+      "complexity": "medium",
+      "domain_hint": "github-integration",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-061",
+      "title": "PR auto-creation and lifecycle tracking",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "feature_spec",
+      "description": "On job completion, agent commits, pushes branch, and calls POST /api/jobs/:id/create-pr. Hub generates PR title + body (prompt, files_changed, tests_passed, cost, duration, recording link) via Octokit. pull_requests table tracks github_pr_number, status, review_status, ci_status.",
+      "user_value": "Job outputs land on GitHub as reviewable PRs with full context automatically.",
+      "acceptance_criteria": [
+        "create-pr endpoint implemented",
+        "pull_requests table + lifecycle updates",
+        "Webhook updates status as review/CI change"
+      ],
+      "complexity": "medium",
+      "domain_hint": "github-integration",
+      "dependencies_hint": ["CAP-049", "CAP-060"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-062",
+      "title": "GitHub Checks API reporting",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "feature_spec",
+      "description": "Agent creates check run on commit (name: 'Claude HQ Agent'). Updates status as in_progress → completed with conclusion and output (test results, errors).",
+      "user_value": "Reviewers see agent status directly on GitHub PR; integrates with branch protection.",
+      "acceptance_criteria": [
+        "checks.create called on branch push",
+        "In-progress and completed states reported",
+        "Output includes tests_passed / error_message"
+      ],
+      "complexity": "low",
+      "domain_hint": "github-integration",
+      "dependencies_hint": ["CAP-060", "CAP-061"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-063",
+      "title": "Workforce dashboard — Repos page",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "brand_ux",
+      "description": "Card list of registered repos. Each card: name, owner, last_synced_at, active job count, quick actions (Launch Job, Sync, Settings, GitHub link). Filter/search by name or tag.",
+      "user_value": "Fast launch of jobs against any registered repo.",
+      "acceptance_criteria": [
+        "Card layout",
+        "Sync freshness indicator",
+        "Quick actions wired",
+        "Search + tag filter"
+      ],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-048"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-064",
+      "title": "Workforce dashboard — Job launcher modal",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "brand_ux",
+      "description": "Modal: repo selector, prompt, branch, machine, advanced (auto-PR, skip pre-flight, max cost, timeout, GitHub issue link). Submit creates job and navigates to detail.",
+      "user_value": "Configured job launch with sensible defaults and advanced escape hatches.",
+      "acceptance_criteria": ["All fields present", "Defaults sensible", "Submits via job API"],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-049", "CAP-063"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-065",
+      "title": "Workforce dashboard — PR tracker page",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "brand_ux",
+      "description": "Table of all PRs with repo, title, status/review/CI badges, created_at. Filters by repo/review/CI. Row click → job detail.",
+      "user_value": "Triage agent PRs in one place without switching to GitHub.",
+      "acceptance_criteria": [
+        "Table with all columns",
+        "Filters functional",
+        "Deep link to job detail"
+      ],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-061"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-066",
+      "title": "Workforce dashboard — Batch launcher page",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "brand_ux",
+      "description": "Multi-select repos (or tag filter), shared prompt, concurrency slider (default 3), preview, launch. Batch detail page with per-repo status bars and cancel-batch.",
+      "user_value": "One-click deployment of changes across many repos.",
+      "acceptance_criteria": [
+        "Selection + tag filter",
+        "Concurrency slider",
+        "Batch detail with status rows and cancel-all"
+      ],
+      "complexity": "medium",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-055"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-067",
+      "title": "Workforce dashboard — Enhanced overview",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "brand_ux",
+      "description": "Overview cards: Active Jobs, Machines Online, Open PRs, Today's Spend. Activity feed (job started/completed, PR created, test failed, cost alert). Quick actions: Launch Job, Import Repo, View Cost.",
+      "user_value": "Single-pane-of-glass for workforce status.",
+      "acceptance_criteria": ["All cards + activity feed live update", "Quick actions wired"],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-049", "CAP-061", "CAP-073"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-068",
+      "title": "Session cost capture (SDKResultMessage → session_costs)",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "SDK query result captured via SDKResultMessage. session_costs table: session_id, model, input_tokens, output_tokens, thinking_tokens, cache_read_tokens, cache_write_tokens, cost_usd, duration_ms, num_turns, stop_reason, created_at. Sub-agent and teammate costs roll up.",
+      "user_value": "Accurate per-session cost tracking.",
+      "acceptance_criteria": [
+        "Table + migration",
+        "Captured immediately after session end",
+        "Roll-up tested"
+      ],
+      "complexity": "low",
+      "domain_hint": "cost-tracking",
+      "dependencies_hint": ["CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-069",
+      "title": "Pricing table + cost formula",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "Current pricing (Opus 4.6 $5/$25, Sonnet 4.6 $3/$15, Haiku 4.5 $1/$5 per MTok). Long-context >200K: 2x input, 1.5x output. Cache write 1.25x, cache read 0.1x. Batch API 50%. Extended thinking billed as output. Formula module with unit tests.",
+      "user_value": "Accurate cost calculation matching actual API charges.",
+      "acceptance_criteria": [
+        "Pricing table in code + config",
+        "Formula verified against SDK-reported costs",
+        "Long-context and cache terms applied"
+      ],
+      "complexity": "low",
+      "domain_hint": "cost-tracking",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-070",
+      "title": "Per-query budget enforcement (maxBudgetUsd)",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "feature_spec",
+      "description": "Pass maxBudgetUsd to SDK query; SDK returns SDKResultMessage with subtype 'error_max_budget_usd' on exceed. Hub honors per-session budget based on session type.",
+      "user_value": "Hard limit prevents runaway cost on single queries.",
+      "acceptance_criteria": [
+        "SDK option wired",
+        "Error subtype handled",
+        "Session marked failed with cost_limit_exceeded reason"
+      ],
+      "complexity": "low",
+      "domain_hint": "cost-tracking",
+      "dependencies_hint": ["CAP-068"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-071",
+      "title": "Daily / monthly budget thresholds with notifications",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "feature_spec",
+      "description": "Hub aggregates daily/monthly costs per user/org. Notifies at 50/75/90/100% of configured budget (idempotent). Optional hard stop at 100% (reject new sessions).",
+      "user_value": "Early warnings before hitting monthly limits.",
+      "acceptance_criteria": [
+        "Budget config stored per user/org",
+        "Thresholds fire once per period",
+        "Hard stop option honored"
+      ],
+      "complexity": "medium",
+      "domain_hint": "cost-tracking",
+      "dependencies_hint": ["CAP-068", "CAP-032"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-072",
+      "title": "Token counting estimator (count_tokens API + @anthropic-ai/tokenizer)",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "POST /v1/messages/count_tokens for upfront input token counts (free endpoint). Optional local @anthropic-ai/tokenizer fallback. Cost estimate shown in UI before session starts; actual vs estimate recorded for accuracy validation.",
+      "user_value": "Informed decisions before expensive sessions.",
+      "acceptance_criteria": [
+        "Endpoint integration",
+        "Estimate shown in job launcher",
+        "Actual vs estimate logged"
+      ],
+      "complexity": "medium",
+      "domain_hint": "cost-tracking",
+      "dependencies_hint": ["CAP-069"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-073",
+      "title": "Cost dashboard page",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "brand_ux",
+      "description": "Summary cards (today/week/month), daily timeline chart, top-repo pie chart, per-machine table, budget alerts section, CSV export. Time range selector.",
+      "user_value": "Cost visibility and chargeback support.",
+      "acceptance_criteria": [
+        "All visualizations render from session_costs",
+        "Time range filter",
+        "CSV export includes all fields"
+      ],
+      "complexity": "low",
+      "domain_hint": "dashboard-ui",
+      "dependencies_hint": ["CAP-068", "CAP-071"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-074",
+      "title": "OpenTelemetry / Langfuse cost observability",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "operational",
+      "description": "CLAUDE_CODE_ENABLE_TELEMETRY=1 + OTEL_EXPORTER_OTLP_ENDPOINT for structured export. Optional Langfuse or Helicone integration for attribution and dashboards.",
+      "user_value": "Detailed observability for optimization and audit.",
+      "acceptance_criteria": [
+        "OTel env vars plumb through to sessions",
+        "Langfuse/Helicone client optional and tested",
+        "Attribution to session/user/model fields"
+      ],
+      "complexity": "medium",
+      "domain_hint": "observability",
+      "dependencies_hint": ["CAP-068"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-075",
+      "title": "Machine metrics collection + time-series storage",
+      "source_document": "docs/_research/2026-03-15_remote-console-patterns.md",
+      "document_type": "architecture",
+      "description": "Agent reports CPU%, memory%, disk%, active sessions, queue depth on heartbeat. Hub persists to metrics table (rolling window). Sparklines and health conditions derive from this source.",
+      "user_value": "Backend data source for machine cards, alerts, and scheduler scoring.",
+      "acceptance_criteria": [
+        "Metrics table + retention",
+        "Heartbeat payload includes all fields",
+        "Query endpoint returns last-N-min series"
+      ],
+      "complexity": "medium",
+      "domain_hint": "observability",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-076",
+      "title": "spawnClaudeCodeProcess abstraction (SpawnStrategy interface)",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "Single interface SpawnStrategy = ({ command, args, cwd, env, signal }) => SpawnedProcess. Agent selects strategy per machine.execution_backend. Backends: local (default), docker, ssh, wsl2. Uniform stdin/stdout/stderr/signal handling.",
+      "user_value": "Jobs run on any backend without code changes.",
+      "acceptance_criteria": [
+        "Interface in shared",
+        "All strategies pass same contract test",
+        "Agent selects by machine config"
+      ],
+      "complexity": "high",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-077",
+      "title": "Docker exec -i spawn strategy with pre-running container pool",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "spawn('docker',['exec','-i','-w',cwd,'-e',env,'claude-worker-N','claude',...]). No -t flag (corrupts JSON-lines). Agent maintains a warm container pool to keep overhead <1s.",
+      "user_value": "Sandboxed execution with sub-second startup.",
+      "acceptance_criteria": [
+        "docker exec without -t",
+        "Container pool maintained",
+        "SpawnedProcess contract test passes",
+        "End-to-end test with JSON-lines protocol"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-076", "CAP-082"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-078",
+      "title": "SSH spawn strategy for remote execution",
+      "source_document": "docs/_research/2026-03-15_github-docker-costs-rivet.md",
+      "document_type": "architecture",
+      "description": "ssh -o BatchMode=yes user@host 'export ENV; cd /path && claude ...'. No -tt flag. AbortSignal kills SSH process.",
+      "user_value": "Distributed workflows on Tailscale-connected machines without Docker.",
+      "acceptance_criteria": [
+        "SpawnedProcess contract test passes",
+        "Signals forwarded reliably",
+        "No pseudo-TTY"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-076"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-079",
+      "title": "WSL2 spawn strategy",
+      "source_document": "docs/_research/2026-03-15_workforce-management-platform.md",
+      "document_type": "architecture",
+      "description": "wsl -d <distro> -- <command>. Same SpawnedProcess contract. Specifically for hub running on Windows host with WSL2 agent machines.",
+      "user_value": "First-class support for WSL2 development environments.",
+      "acceptance_criteria": [
+        "SpawnedProcess contract test passes",
+        "Distro name configurable",
+        "Signals forwarded"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-076"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-080",
+      "title": "Orchestration Agent container controller (dockerode)",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "architecture",
+      "description": "Agent module using dockerode to create/start/attach/stop/remove containers. Handles stdout/stderr demuxing with container.modem.demuxStream(). Tracks container lifecycle.",
+      "user_value": "Direct Docker control for container execution backend.",
+      "acceptance_criteria": [
+        "All lifecycle methods wired",
+        "demuxStream splits out/err",
+        "Container lifecycle tracked and reported"
+      ],
+      "complexity": "high",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-076"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-081",
+      "title": "Container security baseline (CAP_DROP + limits + read-only rootfs)",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "architecture",
+      "description": "Every container: CapDrop=ALL, SecurityOpt=no-new-privileges, ReadonlyRootfs=true, tmpfs /tmp (rw,noexec,nosuid, 512MB), Memory=2GB, CpuQuota=1.5 cores, PidsLimit=256, user 1000:1000, network=claude-restricted.",
+      "user_value": "Proves --dangerously-skip-permissions is safe inside a locked-down container.",
+      "acceptance_criteria": [
+        "Container spec generator enforces every field",
+        "Unit test rejects missing fields",
+        "Runtime container actually matches spec"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-080", "CAP-082"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-082",
+      "title": "Restricted Docker network with HTTP allowlist proxy",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "architecture",
+      "description": "Docker network claude-restricted with tinyproxy/Squid sidecar allowing only api.anthropic.com, registry.npmjs.org, GitHub IP ranges. Containers use HTTP_PROXY env var.",
+      "user_value": "Prevents exfiltration, crypto mining, C2.",
+      "acceptance_criteria": [
+        "Network created",
+        "Proxy allowlist config",
+        "Container env vars set",
+        "Blocked domains fail in test"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": [],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-083",
+      "title": "ContainerPool class mirroring PtyPool interface",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "architecture",
+      "description": "ContainerPool with same external interface as PtyPool (allocate, deallocate, list, stats). Tracks container-id → job-id, enforces max concurrency, reports CPU/memory/PID stats.",
+      "user_value": "Backend swap is transparent to hub-side scheduling.",
+      "acceptance_criteria": [
+        "Interface parity test with PtyPool",
+        "Stats report implemented",
+        "Max concurrency enforced"
+      ],
+      "complexity": "high",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-080"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-084",
+      "title": "Pre-pull Claude Code image on agent startup",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "operational",
+      "description": "Agent pulls ghcr.io/anthropics/claude-code:latest on startup; weekly refresh. Startup health check fails on pull failure.",
+      "user_value": "Sub-second container startup (no 30s pull penalty).",
+      "acceptance_criteria": [
+        "Pull on startup",
+        "Weekly refresh cron",
+        "Health check fails on pull failure"
+      ],
+      "complexity": "low",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-080"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-085",
+      "title": "Container lifecycle and exit handling with commit+push",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "architecture",
+      "description": "Agent calls container.wait(); on exit, reports container:exited with code, runs git add/commit/push in worktree, removes container, optionally creates PR, removes worktree.",
+      "user_value": "Clean shutdown with automatic code commit and resource cleanup.",
+      "acceptance_criteria": [
+        "Wait + exit handler implemented",
+        "Commit/push in worktree",
+        "Cleanup in both success and failure paths"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-080", "CAP-051"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-086",
+      "title": "Container stdout/stderr streaming via WebSocket",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "integration_spec",
+      "description": "Agent.attach + demuxStream. Chunks sent as { type: 'container:stdout'|'container:stderr', containerId, data }. Hub forwards to subscribed dashboard clients.",
+      "user_value": "Real-time container output without polling.",
+      "acceptance_criteria": [
+        "demuxStream correctly splits streams",
+        "Messages routed to dashboard",
+        "No chunk loss under load"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-080", "CAP-006"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-087",
+      "title": "Container resource stats reporting",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "observability",
+      "description": "Agent queries Docker stats API per running container every 5-10s, reports { cpuPercent, memoryMB, pids } via container:stats. Hub stores and serves via metrics query endpoint.",
+      "user_value": "Per-job resource tracking for observability and tuning.",
+      "acceptance_criteria": [
+        "Stats reported at defined interval",
+        "Alert thresholds configurable",
+        "Historical stats queryable"
+      ],
+      "complexity": "low",
+      "domain_hint": "observability",
+      "dependencies_hint": ["CAP-080", "CAP-075"],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-088",
+      "title": "Execution mode selection (docker | pty) with fallback",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "product_definition",
+      "description": "Config option executionMode per machine or per job. Docker mode for autonomous/queued; pty for interactive. Auto-fallback to pty if Docker unavailable with warning.",
+      "user_value": "Gradual migration path and mixed workloads.",
+      "acceptance_criteria": ["Config option honored", "Per-job override", "Fallback path tested"],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-083"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-089",
+      "title": "Async setup commands in temporary container",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "architecture",
+      "description": "Before main Claude container, agent runs setup_commands in a temp container mounting the same worktree (extended timeout). On failure, reports container:error and aborts main container.",
+      "user_value": "Dependencies/build artifacts ready before Claude starts; no permission dialogs inside the main container.",
+      "acceptance_criteria": [
+        "Setup container created with same worktree",
+        "Extended timeout honored",
+        "Failure path reports and aborts"
+      ],
+      "complexity": "medium",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-080", "CAP-053"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-090",
+      "title": "Auto-accept permissions model (--dangerously-skip + sandbox)",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "product_definition",
+      "description": "In docker mode, Claude Code invoked with --dangerously-skip-permissions; container boundary replaces permission system. Requires CAP-081 (security baseline) and CAP-082 (restricted network) to be ON.",
+      "user_value": "Fully autonomous sessions without interactive permission dialogs.",
+      "acceptance_criteria": [
+        "Flag only applied inside containers meeting baseline",
+        "Refuses to run outside sandbox",
+        "Documentation clearly scopes the risk"
+      ],
+      "complexity": "high",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-081", "CAP-082"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-091",
+      "title": "Worktree and container retention cleanup",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "operational",
+      "description": "Background job removes worktrees and stopped containers older than retention period (default 7 days) while respecting in-flight jobs. Logs removals.",
+      "user_value": "Bounded disk usage without manual cleanup.",
+      "acceptance_criteria": [
+        "Sweeper on schedule",
+        "Retention configurable",
+        "In-flight jobs skipped"
+      ],
+      "complexity": "low",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-051", "CAP-080"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-092",
+      "title": "Container orchestration WebSocket protocol schema",
+      "source_document": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md",
+      "document_type": "integration_spec",
+      "description": "Zod schemas and TS types for container:create/stop/remove/exec (hub→agent) and container:created/started/stdout/stderr/exited/error/stats (agent→hub). Version-negotiated.",
+      "user_value": "Strongly typed protocol for container orchestration.",
+      "acceptance_criteria": [
+        "All message types defined",
+        "Validation on send/receive",
+        "Protocol version negotiated"
+      ],
+      "complexity": "low",
+      "domain_hint": "docker-sandbox",
+      "dependencies_hint": ["CAP-002"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-093",
+      "title": "Single-container Hub serves Dashboard static files",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "Hub uses @fastify/static to serve Dashboard SPA. Dashboard built with nuxt generate, copied into Hub image. setNotFoundHandler routes non-API paths to index.html. Relative API/WS paths.",
+      "user_value": "Minimal deployment: one container, one health check, one log stream.",
+      "acceptance_criteria": [
+        "Dashboard served from dashboard-static/",
+        "SPA fallback works",
+        "No CORS / no separate origin"
+      ],
+      "complexity": "medium",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": ["CAP-004"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-094",
+      "title": "Multi-stage Dockerfile with turbo prune for combined Hub+Dashboard",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "6-stage Dockerfile (base, pruner, hub-deps, hub-builder, dashboard-builder, prod-deps, runtime). turbo prune @chq/hub --docker, turbo prune @chq/dashboard --docker --out-dir out-dashboard. BuildKit cache mount for pnpm store.",
+      "user_value": "Fast reproducible builds with optimal layer caching.",
+      "acceptance_criteria": [
+        "All stages present",
+        "turbo prune used for both packages",
+        "Cache mount configured",
+        "Final image runs with docker build"
+      ],
+      "complexity": "high",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": ["CAP-093"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-095",
+      "title": "Node 22 bookworm-slim base image (glibc)",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "nfr",
+      "description": "Base image node:22-bookworm-slim. hub-deps and prod-deps stages install python3, make, g++ for better-sqlite3 native compilation. Never Alpine (musl fcntl64 issues).",
+      "user_value": "Reliable SQLite compilation and no libc symbol failures.",
+      "acceptance_criteria": [
+        "Base image locked to bookworm-slim",
+        "Build tools present in deps stages",
+        "No Alpine anywhere"
+      ],
+      "complexity": "low",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": ["CAP-094"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-096",
+      "title": "Docker Compose with Tailscale sidecar",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "compose with tailscale service (image tailscale/tailscale:latest) and hub service (network_mode: service:tailscale). TS_AUTHKEY, TS_STATE_DIR, TS_SERVE_CONFIG, TS_EXTRA_ARGS=--advertise-tags=tag:claudehq. ts-state named volume.",
+      "user_value": "Hub auto-joins tailnet with stable hostname without host-level Tailscale install.",
+      "acceptance_criteria": [
+        "Both services defined",
+        "network_mode shares namespace",
+        "ts-state persists across restarts"
+      ],
+      "complexity": "medium",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-097",
+      "title": "Tailscale Serve HTTPS config",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "deploy/ts-config/serve.json: TCP 443 HTTPS, Web handler at ${TS_CERT_DOMAIN}:443 → http://127.0.0.1:7700. Auto TLS via Tailscale managed certs.",
+      "user_value": "Secure HTTPS access with zero cert management.",
+      "acceptance_criteria": [
+        "serve.json valid",
+        "Hub reachable at https://<hostname>.<tailnet>.ts.net",
+        "Browser trust works"
+      ],
+      "complexity": "medium",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": ["CAP-096"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-098",
+      "title": "Simplified docker-compose for host Tailscale",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "docker-compose.simple.yml variant: hub only, ports: ['7700:7700'], no Tailscale sidecar. For hosts already running Tailscale.",
+      "user_value": "Fewer moving parts for operators with host-level Tailscale.",
+      "acceptance_criteria": [
+        "File exists alongside full compose",
+        "Documented which users pick which",
+        "Agents connect via localhost"
+      ],
+      "complexity": "low",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": ["CAP-096"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-099",
+      "title": "Docker secrets for API keys and GitHub private key",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "operational",
+      "description": "Compose secrets: section with anthropic_api_key and github_app_private_key. Hub reads from /run/secrets/*. .gitignore excludes secrets/, .env, data/. TS_AUTHKEY via .env.",
+      "user_value": "Secrets never appear in env vars or compose file; git-safe.",
+      "acceptance_criteria": [
+        "Compose secrets defined",
+        "Hub reads via fs.readFileSync",
+        ".gitignore updated"
+      ],
+      "complexity": "low",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-100",
+      "title": "SQLite backup strategy (cron .backup + Litestream)",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "operational",
+      "description": "Host cron runs docker exec hub sqlite3 ... '.backup <file>' with timestamp. Optional Litestream sidecar for continuous S3/B2/SFTP replication.",
+      "user_value": "Reliable recovery from container failure.",
+      "acceptance_criteria": [
+        "Cron script provided",
+        "Litestream sidecar config documented",
+        "Restore verified in test env"
+      ],
+      "complexity": "medium",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": [],
+      "research_needed": true
+    },
+    {
+      "id": "CAP-101",
+      "title": "Agent Dockerfile for remote deployment",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "architecture",
+      "description": "Dockerfile.agent (separate from hub compose) with same multi-stage pattern. Runtime stage includes procps for node-pty process management.",
+      "user_value": "Consistent lean agent images for containerized deployments (bare-metal systemd remains primary).",
+      "acceptance_criteria": [
+        "Dockerfile.agent builds",
+        "procps installed",
+        "Agent container connects to hub WS"
+      ],
+      "complexity": "medium",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": ["CAP-005"],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-102",
+      "title": ".dockerignore for monorepo build context",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "operational",
+      "description": ".dockerignore excludes node_modules/, .nuxt/, .output/, dist/, .turbo/, .git/, .github/, .vscode/, .claude/, docs/, *.md, .env*, secrets/, data/.",
+      "user_value": "Smaller build context; no accidental secret/data inclusion.",
+      "acceptance_criteria": [
+        ".dockerignore in repo root with all patterns",
+        "Build context size reduced"
+      ],
+      "complexity": "low",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-103",
+      "title": "Hub memory limit via NODE_OPTIONS",
+      "source_document": "docs/_research/2026-03-15_self-hosted-docker-deployment.md",
+      "document_type": "nfr",
+      "description": "NODE_OPTIONS=--max-old-space-size=384 in hub service. Node.js doesn't auto-detect Docker memory limits.",
+      "user_value": "Predictable memory bounds, no OOM kills.",
+      "acceptance_criteria": ["Env var set in compose", "No OOM events in logs"],
+      "complexity": "low",
+      "domain_hint": "deploy-infra",
+      "dependencies_hint": [],
+      "research_needed": false
+    },
+    {
+      "id": "CAP-104",
+      "title": "Competitive landscape doc (claudeHQ vs alternatives)",
+      "source_document": "docs/_research/2026-03-15_docs-audit.md",
+      "document_type": "competitive_analysis",
+      "description": "docs/market/ summary comparing claudeHQ to OpenClaw, runCLAUDErun, manual Claude Code, standalone Claude. Key differentiator: distributed orchestration + live terminal + replay.",
+      "user_value": "Clear positioning for product decisions and communication.",
+      "acceptance_criteria": ["Document exists with comparison table", "Linked from README"],
+      "complexity": "low",
+      "domain_hint": "docs",
+      "dependencies_hint": [],
+      "research_needed": false
+    }
+  ],
+  "dedup_log": [
+    {
+      "merged": "workforce LOCAL-004-REVISED (GitHub App OAuth2)",
+      "into": "CAP-057 + CAP-060",
+      "reason": "github-docker-costs-rivet research gives the fuller manifest flow + credential storage pattern; workforce version collapsed into those capabilities"
+    },
+    {
+      "merged": "workforce LOCAL-009 (cost tracking) + remote-console LOCAL-013 (session timeout/cost)",
+      "into": "CAP-068..CAP-071 + CAP-011",
+      "reason": "split into capture / formula / per-query budget / period thresholds / enforcement"
+    },
+    {
+      "merged": "workforce LOCAL-019 (spawnClaudeCodeProcess strategies)",
+      "into": "CAP-076 + CAP-077 + CAP-078 + CAP-079",
+      "reason": "split umbrella abstraction into per-backend strategies"
+    },
+    {
+      "merged": "workforce LOCAL-020 (recording/playback) + self-hosted LOCAL-008 (recordings volume)",
+      "into": "CAP-045 + CAP-046 + CAP-047",
+      "reason": "persistence, playback UI, and retention are separate deliverables"
+    },
+    {
+      "merged": "docs-audit LOCAL-002 (HTTP hooks matrix fix) + LOCAL-005 (PermissionRequest/TaskCompleted) + approval LOCAL-013/014 (hook receivers)",
+      "into": "CAP-019 + CAP-020",
+      "reason": "single implementation with the corrected HTTP-vs-WS matrix"
+    },
+    {
+      "merged": "docs-audit LOCAL-009 (agent daemon WS)",
+      "into": "CAP-005 + CAP-020",
+      "reason": "agent daemon core already covers the lifecycle channel"
+    },
+    {
+      "merged": "gh-docker LOCAL-016 (typed permission replies) ~ approval LOCAL-008 (three-way decision)",
+      "into": "CAP-027 + CAP-029",
+      "reason": "related but distinct: three-way decision is approve/edit/reject; once/always/reject is session-scoped caching. Kept both"
+    },
+    {
+      "merged": "gh-docker LOCAL-015 (Universal Event Schema)",
+      "into": "CAP-002",
+      "reason": "folded into shared protocol schemas"
+    },
+    {
+      "merged": "gh-docker LOCAL-002 (Tailscale Funnel webhook)",
+      "into": "CAP-059",
+      "reason": "direct 1:1 mapping"
+    },
+    {
+      "merged": "container-orch LOCAL-004 (git worktree from container side)",
+      "into": "CAP-051",
+      "reason": "worktree lifecycle consolidated into a single capability shared by both backends"
+    },
+    {
+      "merged": "container-orch LOCAL-012 (container WS protocol)",
+      "into": "CAP-092",
+      "reason": "direct 1:1 mapping"
+    },
+    {
+      "merged": "remote-console LOCAL-001 (binary terminal protocol)",
+      "into": "CAP-006",
+      "reason": "direct 1:1 mapping"
+    },
+    {
+      "merged": "self-hosted LOCAL-006 (SQLite WAL) + LOCAL-012 (health check)",
+      "into": "CAP-004",
+      "reason": "both part of the hub core server capability"
+    }
+  ]
+}

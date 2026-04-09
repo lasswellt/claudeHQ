@@ -1,0 +1,17 @@
+{
+  "sprintId": "sprint-013",
+  "number": 13,
+  "createdDate": "2026-04-08",
+  "epics": ["E002"],
+  "phase": "R2",
+  "storyCount": 12,
+  "totalPoints": 41,
+  "breakdown": {
+    "agent": { "stories": 1, "points": 5 },
+    "hub": { "stories": 4, "points": 10 },
+    "dashboard": { "stories": 6, "points": 21 },
+    "shared": { "stories": 1, "points": 5 }
+  },
+  "status": "complete",
+  "completedDate": "2026-04-09"
+}

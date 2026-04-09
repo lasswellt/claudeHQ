@@ -1,0 +1,27 @@
+{
+  "sprintId": "sprint-007",
+  "number": 7,
+  "createdDate": "2026-03-16",
+  "epics": ["EPIC-028", "EPIC-029", "EPIC-030", "EPIC-031", "EPIC-032"],
+  "storyCount": 10,
+  "totalPoints": 42,
+  "breakdown": {
+    "shared": { "stories": 1, "points": 3 },
+    "hub": { "stories": 4, "points": 17 },
+    "agent": { "stories": 2, "points": 8 },
+    "dashboard": { "stories": 3, "points": 14 }
+  },
+  "status": "planned",
+  "storyList": [
+    { "id": "007-001", "title": "Shared repo, workspace, job types + protocol", "epic": "EPIC-028+029+030", "pkg": "shared", "points": 3 },
+    { "id": "007-002", "title": "Hub repos + workspaces + jobs tables (migration)", "epic": "EPIC-028+029+030", "pkg": "hub", "points": 3 },
+    { "id": "007-003", "title": "Hub repo registry CRUD API", "epic": "EPIC-028", "pkg": "hub", "points": 3 },
+    { "id": "007-004", "title": "Hub job model + state machine + API", "epic": "EPIC-030", "pkg": "hub", "points": 5 },
+    { "id": "007-005", "title": "Hub workspace management + WS protocol", "epic": "EPIC-029", "pkg": "hub", "points": 6 },
+    { "id": "007-006", "title": "Agent git operations (clone, worktree, branch)", "epic": "EPIC-032", "pkg": "agent", "points": 5 },
+    { "id": "007-007", "title": "Agent workspace provisioner + env resolver", "epic": "EPIC-029", "pkg": "agent", "points": 3 },
+    { "id": "007-008", "title": "Dashboard repos page + job launcher modal", "epic": "EPIC-031", "pkg": "dashboard", "points": 5 },
+    { "id": "007-009", "title": "Dashboard jobs + workspaces pages", "epic": "EPIC-031", "pkg": "dashboard", "points": 5 },
+    { "id": "007-010", "title": "Dashboard enhanced overview (jobs, cost)", "epic": "EPIC-031", "pkg": "dashboard", "points": 4 }
+  ]
+}

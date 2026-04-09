@@ -1,0 +1,21 @@
+{
+  "sprintId": "sprint-015",
+  "number": 15,
+  "createdDate": "2026-04-09",
+  "epics": ["E004"],
+  "phase": "R4",
+  "storyCount": 8,
+  "totalPoints": 29,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    { "id": "015-001", "title": "Pricing table + formula + contract test", "points": 3 },
+    { "id": "015-002", "title": "maxBudgetUsd plumbing to SDK call sites", "points": 3 },
+    { "id": "015-003", "title": "Budget enforcer + threshold events table", "points": 5 },
+    { "id": "015-004", "title": "Hard-stop flag + session rejection path", "points": 2 },
+    { "id": "015-005", "title": "Token counter estimator", "points": 5 },
+    { "id": "015-006", "title": "Cost dashboard polish + CSV export", "points": 3 },
+    { "id": "015-007", "title": "OTel export module (optional)", "points": 5 },
+    { "id": "015-008", "title": "Langfuse/Helicone adapter", "points": 3 }
+  ]
+}

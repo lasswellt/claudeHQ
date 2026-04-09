@@ -176,3 +176,136 @@ describe('Dashboard → Hub protocol', () => {
     ).toThrow(ZodError);
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// HI-01: approval + workforce schemas must be members of the
+// top-level discriminated unions (sprint-012 / story 012-001)
+// ─────────────────────────────────────────────────────────────
+
+describe('Agent → Hub protocol — approvals and workforce (HI-01)', () => {
+  it('parses agent:approval:request via agentToHubSchema', () => {
+    const msg = agentToHubSchema.parse({
+      type: 'agent:approval:request',
+      approvalId: 'ap-1',
+      sessionId: 'sess-1',
+      requestType: 'permission',
+      toolName: 'Bash',
+      toolInput: 'ls -la',
+      source: 'hook',
+    });
+    expect(msg.type).toBe('agent:approval:request');
+  });
+
+  it('parses agent:workspace:ready via agentToHubSchema', () => {
+    const msg = agentToHubSchema.parse({
+      type: 'agent:workspace:ready',
+      workspaceId: 'ws-1',
+      path: '/tmp/ws-1',
+      branch: 'main',
+      diskUsageBytes: 1024,
+    });
+    expect(msg.type).toBe('agent:workspace:ready');
+  });
+
+  it('parses agent:container:created via agentToHubSchema', () => {
+    const msg = agentToHubSchema.parse({
+      type: 'agent:container:created',
+      jobId: 'job-1',
+      containerId: 'ctr-abcdef',
+    });
+    expect(msg.type).toBe('agent:container:created');
+  });
+
+  it('parses agent:container:exited with commitHash null', () => {
+    const msg = agentToHubSchema.parse({
+      type: 'agent:container:exited',
+      jobId: 'job-1',
+      containerId: 'ctr-abcdef',
+      exitCode: 0,
+      commitHash: null,
+      filesChanged: 3,
+      branch: 'feature/x',
+    });
+    expect(msg.type).toBe('agent:container:exited');
+    if (msg.type === 'agent:container:exited') {
+      expect(msg.commitHash).toBeNull();
+    }
+  });
+});
+
+describe('Hub → Agent protocol — approvals and workforce (HI-01)', () => {
+  it('parses hub:approval:decision via hubToAgentSchema', () => {
+    const msg = hubToAgentSchema.parse({
+      type: 'hub:approval:decision',
+      approvalId: 'ap-1',
+      sessionId: 'sess-1',
+      decision: 'approve',
+      responseText: 'ok',
+    });
+    expect(msg.type).toBe('hub:approval:decision');
+  });
+
+  it('parses hub:workspace:provision via hubToAgentSchema', () => {
+    const msg = hubToAgentSchema.parse({
+      type: 'hub:workspace:provision',
+      workspaceId: 'ws-1',
+      repoUrl: 'git@github.com:a/b.git',
+      branch: 'main',
+      setupCommands: ['pnpm i'],
+      clonePath: '/tmp/ws-1',
+    });
+    expect(msg.type).toBe('hub:workspace:provision');
+  });
+
+  it('parses hub:container:create via hubToAgentSchema', () => {
+    const msg = hubToAgentSchema.parse({
+      type: 'hub:container:create',
+      jobId: 'job-1',
+      repoId: 'repo-1',
+      repoUrl: 'git@github.com:a/b.git',
+      branch: 'main',
+      prompt: 'Fix the bug',
+    });
+    expect(msg.type).toBe('hub:container:create');
+  });
+});
+
+describe('Hub → Dashboard protocol — approvals (HI-01)', () => {
+  it('parses approval:requested via hubToDashboardSchema', () => {
+    const msg = hubToDashboardSchema.parse({
+      type: 'approval:requested',
+      approval: {
+        id: 'ap-1',
+        session_id: 'sess-1',
+        machine_id: 'studio-pc',
+        request_type: 'permission',
+        source: 'hook',
+        risk_level: 'medium',
+        status: 'pending',
+        timeout_seconds: 300,
+        timeout_action: 'deny',
+        timeout_at: 1710000300,
+        created_at: 1710000000,
+      },
+    });
+    expect(msg.type).toBe('approval:requested');
+  });
+
+  it('parses approval:resolved via hubToDashboardSchema', () => {
+    const msg = hubToDashboardSchema.parse({
+      type: 'approval:resolved',
+      approvalId: 'ap-1',
+      status: 'approved',
+      resolvedBy: 'user-1',
+    });
+    expect(msg.type).toBe('approval:resolved');
+  });
+
+  it('parses approval:count via hubToDashboardSchema', () => {
+    const msg = hubToDashboardSchema.parse({
+      type: 'approval:count',
+      pending: 3,
+    });
+    expect(msg.type).toBe('approval:count');
+  });
+});

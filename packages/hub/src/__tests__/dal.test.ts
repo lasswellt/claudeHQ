@@ -95,6 +95,73 @@ describe('Session DAL', () => {
     expect(session!.pid).toBe(12345);
     expect(session!.started_at).toBe(1710000100);
   });
+
+  // CAP-010 / story 012-003
+  it('persists and reads back tags', () => {
+    dal.insertSession({
+      id: 'sess-tag-1',
+      machineId: 'pc-1',
+      prompt: 'Tagged',
+      cwd: '/a',
+      tags: ['foo', 'bar'],
+    });
+    const s = dal.getSession('sess-tag-1');
+    expect(s?.tags).toEqual(['foo', 'bar']);
+  });
+
+  it('stores null tags when none provided and returns undefined on read', () => {
+    dal.insertSession({ id: 'sess-notag', machineId: 'pc-1', prompt: 'T', cwd: '/a' });
+    const s = dal.getSession('sess-notag');
+    expect(s?.tags).toBeUndefined();
+  });
+
+  it('filters sessions by tag', () => {
+    dal.insertSession({
+      id: 'sess-a',
+      machineId: 'pc-1',
+      prompt: 'A',
+      cwd: '/a',
+      tags: ['production', 'critical'],
+    });
+    dal.insertSession({
+      id: 'sess-b',
+      machineId: 'pc-1',
+      prompt: 'B',
+      cwd: '/b',
+      tags: ['staging'],
+    });
+    dal.insertSession({
+      id: 'sess-c',
+      machineId: 'pc-1',
+      prompt: 'C',
+      cwd: '/c',
+    });
+
+    const prod = dal.listSessions({ tag: 'production' });
+    expect(prod.map((s) => s.id)).toEqual(['sess-a']);
+
+    const staging = dal.listSessions({ tag: 'staging' });
+    expect(staging.map((s) => s.id)).toEqual(['sess-b']);
+
+    const missing = dal.listSessions({ tag: 'nonexistent' });
+    expect(missing).toHaveLength(0);
+  });
+
+  it('tag filter is unambiguous (does not match substrings of other tag names)', () => {
+    dal.insertSession({
+      id: 'sess-x',
+      machineId: 'pc-1',
+      prompt: 'X',
+      cwd: '/x',
+      tags: ['prod-us-east'],
+    });
+    // "prod" should NOT match "prod-us-east" — the LIKE matches the
+    // full JSON-encoded token "prod-us-east".
+    const prod = dal.listSessions({ tag: 'prod' });
+    expect(prod).toHaveLength(0);
+    const full = dal.listSessions({ tag: 'prod-us-east' });
+    expect(full).toHaveLength(1);
+  });
 });
 
 describe('Queue DAL', () => {

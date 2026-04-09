@@ -1,0 +1,21 @@
+{
+  "sprintId": "sprint-018",
+  "number": 18,
+  "createdDate": "2026-04-09",
+  "epics": ["E007"],
+  "phase": "R7",
+  "storyCount": 8,
+  "totalPoints": 27,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    { "id": "018-001", "title": "Restricted network + tinyproxy config", "points": 5 },
+    { "id": "018-002", "title": "Security baseline builder + runtime validator", "points": 3 },
+    { "id": "018-003", "title": "--dangerously-skip-permissions runtime guard", "points": 2 },
+    { "id": "018-004", "title": "Pre-pull on startup + weekly refresh", "points": 3 },
+    { "id": "018-005", "title": "Container stats CPU% math + streaming reporter", "points": 3 },
+    { "id": "018-006", "title": "Async setup container via docker.run()", "points": 5 },
+    { "id": "018-007", "title": "WSL2 spawn strategy + contract test", "points": 3 },
+    { "id": "018-008", "title": "E2E egress-blocked test", "points": 3 }
+  ]
+}

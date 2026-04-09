@@ -1,0 +1,20 @@
+{
+  "sprintId": "sprint-017",
+  "number": 17,
+  "createdDate": "2026-04-09",
+  "epics": ["E006"],
+  "phase": "R6",
+  "storyCount": 7,
+  "totalPoints": 27,
+  "status": "complete",
+  "completedDate": "2026-04-09",
+  "storyIndex": [
+    { "id": "017-001", "title": "Manifest flow + callback handler", "points": 5 },
+    { "id": "017-002", "title": "Setup wizard UI (7 steps)", "points": 5 },
+    { "id": "017-003", "title": "PAT fallback path + polling mode", "points": 5 },
+    { "id": "017-004", "title": "Tailscale Funnel provisioning script", "points": 3 },
+    { "id": "017-005", "title": "@octokit/auth-app integration + encryption", "points": 3 },
+    { "id": "017-006", "title": "PR body generator + lifecycle writer", "points": 3 },
+    { "id": "017-007", "title": "GitHub webhook receiver + status sync", "points": 3 }
+  ]
+}
