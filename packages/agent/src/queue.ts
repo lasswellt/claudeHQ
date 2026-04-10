@@ -1,5 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { z } from 'zod';
+import pino from 'pino';
+
+const log = pino({ name: 'task-queue' });
 
 export interface QueuedTask {
   id: string;
@@ -9,6 +13,17 @@ export interface QueuedTask {
   priority: number;
   createdAt: number;
 }
+
+const queuedTaskSchema = z.object({
+  id: z.string(),
+  prompt: z.string(),
+  cwd: z.string(),
+  flags: z.array(z.string()).optional(),
+  priority: z.number(),
+  createdAt: z.number(),
+});
+
+const queuedTaskArraySchema = z.array(queuedTaskSchema);
 
 export class TaskQueue extends EventEmitter {
   private tasks: QueuedTask[] = [];
@@ -83,7 +98,13 @@ export class TaskQueue extends EventEmitter {
     if (!this.persistPath || !existsSync(this.persistPath)) return;
     try {
       const data = readFileSync(this.persistPath, 'utf-8');
-      this.tasks = JSON.parse(data) as QueuedTask[];
+      const parsed = queuedTaskArraySchema.safeParse(JSON.parse(data));
+      if (parsed.success) {
+        this.tasks = parsed.data;
+      } else {
+        log.warn({ errors: parsed.error.issues }, 'Queue persist file failed validation — starting with empty queue');
+        this.tasks = [];
+      }
     } catch {
       this.tasks = [];
     }

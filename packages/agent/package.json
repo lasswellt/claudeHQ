@@ -21,7 +21,8 @@
     "dockerode": "^4.0.9",
     "node-pty": "^1.1.0",
     "pino": "^10.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/ws": "^8.18.0"

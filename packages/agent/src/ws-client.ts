@@ -41,12 +41,12 @@ export class WsClient extends EventEmitter {
     if (this.destroyed) return;
     this.setState('connecting');
 
-    let connectUrl = this.options.url;
+    const connectUrl = this.options.url;
+    const wsOptions: WebSocket.ClientOptions = {};
     if (this.options.agentToken) {
-      const sep = connectUrl.includes('?') ? '&' : '?';
-      connectUrl = `${connectUrl}${sep}token=${encodeURIComponent(this.options.agentToken)}`;
+      wsOptions.headers = { 'x-agent-token': this.options.agentToken };
     }
-    this.ws = new WebSocket(connectUrl);
+    this.ws = new WebSocket(connectUrl, wsOptions);
 
     this.ws.on('open', () => {
       this.reconnectAttempts = 0;

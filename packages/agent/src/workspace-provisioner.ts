@@ -1,7 +1,24 @@
-import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import pino from 'pino';
 import { cloneRepo, fetchRepo, createWorktree, isGitRepo } from './git-ops.js';
+
+// Allowlist of safe command prefixes — mirrors container-setup.ts to enforce
+// consistent policy for host-side workspace setup.
+const ALLOWED_SETUP_PREFIXES = [
+  'pnpm ', 'npm ', 'yarn ', 'bun ', 'npx ',
+  'pip ', 'uv ', 'cargo ', 'go ',
+  'make', 'cmake',
+  'apt-get ', 'apk ',
+  'git ', 'cp ', 'mv ', 'mkdir ', 'chmod ', 'ln ',
+  'node ', 'python', 'ruby ', 'java ',
+  'tsc', 'eslint', 'prettier', 'vitest', 'jest',
+];
+
+function isAllowedCommand(cmd: string): boolean {
+  const trimmed = cmd.trim();
+  return ALLOWED_SETUP_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+}
 
 const log = pino({ name: 'workspace-provisioner' });
 
@@ -49,9 +66,15 @@ export async function provisionWorkspace(opts: ProvisionOptions): Promise<Provis
 
   // Step 3: Run setup commands
   for (const cmd of opts.setupCommands) {
+    if (!isAllowedCommand(cmd)) {
+      log.warn({ cmd }, 'Setup command rejected — not in allowlist');
+      throw new Error(`Setup command rejected (not in allowlist): ${cmd}`);
+    }
     log.info({ cmd, cwd: workspacePath }, 'Running setup command');
+    // Split into executable + args to avoid shell interpretation
+    const [executable, ...args] = cmd.trim().split(/\s+/);
     try {
-      execSync(cmd, { cwd: workspacePath, encoding: 'utf-8', timeout: 300000 });
+      execFileSync(executable!, args, { cwd: workspacePath, encoding: 'utf-8', timeout: 300000 });
     } catch (err) {
       log.error({ cmd, err }, 'Setup command failed');
       throw new Error(`Setup command failed: ${cmd}`);
@@ -61,10 +84,12 @@ export async function provisionWorkspace(opts: ProvisionOptions): Promise<Provis
   // Step 4: Get disk usage
   let diskUsageBytes = 0;
   try {
-    const output = execSync(`du -sb "${workspacePath}" | cut -f1`, {
+    // Use execFileSync with argument array to avoid shell injection via workspacePath
+    const output = execFileSync('du', ['-sb', workspacePath], {
       encoding: 'utf-8',
     }).trim();
-    diskUsageBytes = parseInt(output, 10) || 0;
+    // du output format: "<bytes>\t<path>" — extract only the first field
+    diskUsageBytes = parseInt(output.split('\t')[0] ?? '0', 10) || 0;
   } catch {
     // Best effort
   }
@@ -90,7 +115,8 @@ export function detectPackageManager(workspacePath: string): string | null {
 export function detectNodeVersion(workspacePath: string): string | null {
   for (const file of ['.nvmrc', '.node-version']) {
     try {
-      const version = execSync(`cat "${workspacePath}/${file}"`, { encoding: 'utf-8' }).trim();
+      // Use readFileSync directly — avoids shell injection via workspacePath or filename
+      const version = readFileSync(`${workspacePath}/${file}`, 'utf-8').trim();
       if (version) return version;
     } catch {
       // Not found

@@ -33,8 +33,11 @@ export function createSshSpawn(opts: SshSpawnOptions) {
       .map(([k, v]) => `export ${k}='${(v as string).replace(/'/g, "'\\''")}'`)
       .join('; ');
 
-    const cwd = spawnOpts.cwd ?? '~';
-    const remoteCmd = `${envExports}; cd ${cwd} && claude ${spawnOpts.args.join(' ')}`;
+    const rawCwd = spawnOpts.cwd ?? '~';
+    // Single-quote the cwd to prevent shell metacharacter injection.
+    // The replace escapes any embedded single-quotes using the 'x'"'"'y' idiom.
+    const quotedCwd = `'${rawCwd.replace(/'/g, "'\\''")}'`;
+    const remoteCmd = `${envExports}; cd ${quotedCwd} && claude ${spawnOpts.args.join(' ')}`;
 
     const sshArgs = [
       '-o', 'StrictHostKeyChecking=accept-new',
@@ -46,7 +49,7 @@ export function createSshSpawn(opts: SshSpawnOptions) {
       remoteCmd,
     ];
 
-    log.info({ host: opts.host, cwd }, 'Spawning via SSH');
+    log.info({ host: opts.host, cwd: rawCwd }, 'Spawning via SSH');
 
     const proc = spawn('ssh', sshArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],

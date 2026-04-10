@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 export interface SystemHealth {
   cpuPercent: number;
@@ -42,9 +42,12 @@ function getMemPercent(): number {
 
 function getDiskPercent(targetPath?: string): number {
   try {
-    const path = targetPath ?? '/';
-    const output = execSync(`df -P "${path}" | tail -1`, { encoding: 'utf-8' });
-    const parts = output.trim().split(/\s+/);
+    const dfPath = targetPath ?? '/';
+    const output = execFileSync('df', ['-P', dfPath], { encoding: 'utf-8' });
+    // Skip header line, parse the data line
+    const lines = output.trim().split('\n');
+    if (lines.length < 2) return 0;
+    const parts = lines[1]!.trim().split(/\s+/);
     const usePercent = parts[4]; // e.g., "42%"
     if (usePercent) {
       return parseInt(usePercent.replace('%', ''), 10);
