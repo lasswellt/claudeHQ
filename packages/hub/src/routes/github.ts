@@ -3,12 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import type { GitHubClient } from '../github/client.js';
+import { createChecksLifecycle } from '../github/checks-lifecycle.js';
 
 
 export async function githubRoutes(
   app: FastifyInstance,
   db: Database.Database,
   githubClient: GitHubClient,
+  broadcastToDashboard: (msg: unknown) => void,
 ): Promise<void> {
   // Prepared statements — hoisted to plugin scope so they are compiled once at registration
   const listPrsStmt = db.prepare('SELECT * FROM pull_requests ORDER BY created_at DESC LIMIT 50');
@@ -33,6 +35,7 @@ export async function githubRoutes(
     'UPDATE pull_requests SET review_status = ?, updated_at = unixepoch() WHERE github_pr_number = ?',
   );
   const updateJobIssueLinkStmt = db.prepare('UPDATE jobs SET github_issue_number = ? WHERE id = ?');
+  const updateJobCheckRunStmt = db.prepare('UPDATE jobs SET check_run_id = ? WHERE id = ?');
 
   // ── Setup / Config ──────────────────────────────────────────
 
@@ -106,8 +109,8 @@ export async function githubRoutes(
       name: 'Claude HQ',
       url: baseUrl,
       hook_attributes: { url: `${baseUrl}/hooks/github`, active: true },
-      redirect_url: `${baseUrl}/api/github/callback`,
-      setup_url: `${baseUrl}/api/github/setup`,
+      redirect_url: `${baseUrl}/settings/github/wizard`,
+      setup_url: `${baseUrl}/settings/github/wizard`,
       setup_on_update: true,
       public: false,
       default_permissions: {
@@ -165,7 +168,7 @@ export async function githubRoutes(
         `**Cost:** $${((job.cost_usd as number) ?? 0).toFixed(2)}`,
         `**Files changed:** ${job.files_changed ?? 0}`,
         '',
-        `_Created by [Claude HQ](http://localhost:3000/jobs/${job.id})_`,
+        `_Created by [Claude HQ](${req.protocol}://${req.headers.host}/jobs/${job.id})_`,
       ].join('\n'),
       labels: ['ai-generated'],
     });
@@ -179,6 +182,32 @@ export async function githubRoutes(
       insertPrStmt.run(prId, job.id, repo.id, prResult.number, prResult.url, branch, base, job.title, prResult.additions, prResult.deletions, prResult.changedFiles);
       updateJobPrStmt.run(prResult.number, prResult.url, job.id);
     })();
+
+    // Start a GitHub Check Run so the job appears as an in-progress check
+    // on the PR. We do this after the transaction so a GitHub API failure
+    // never rolls back the PR record.
+    const checksLifecycle = createChecksLifecycle(githubClient.asCheckRunClient());
+    const headSha = await githubClient.getBranchSha(owner, repoName, branch);
+    if (headSha) {
+      const detailsUrl = `${req.protocol}://${req.headers.host}/jobs/${job.id as string}`;
+      try {
+        const { checkRunId } = await checksLifecycle.start({
+          owner,
+          repo: repoName,
+          headSha,
+          name: 'Claude HQ Agent',
+          detailsUrl,
+          externalId: job.id as string,
+        });
+        updateJobCheckRunStmt.run(checkRunId, job.id);
+        app.log.info({ jobId: job.id, checkRunId }, 'Check run started for job PR');
+      } catch (err) {
+        // Log but don't fail the response — PR was already created
+        app.log.error({ err, jobId: job.id }, 'Failed to start check run after PR creation');
+      }
+    } else {
+      app.log.warn({ jobId: job.id, branch }, 'Could not resolve branch SHA — check run skipped');
+    }
 
     return { id: prId, ...prResult };
   });
@@ -229,8 +258,10 @@ export async function githubRoutes(
 
         if (action === 'closed' && pr?.merged) {
           setPrMergedStmt.run(prNumber);
+          broadcastToDashboard({ type: 'pr:updated', prNumber, status: 'merged' });
         } else if (action === 'closed') {
           setPrClosedStmt.run(prNumber);
+          broadcastToDashboard({ type: 'pr:updated', prNumber, status: 'closed' });
         }
         break;
       }
@@ -243,6 +274,7 @@ export async function githubRoutes(
           const ciStatus = conclusion === 'success' ? 'passing' : 'failing';
           // Only update PRs that match the specific branch this check ran on
           updatePrCiStatusStmt.run(ciStatus, headBranch);
+          broadcastToDashboard({ type: 'pr:updated', headBranch, ciStatus });
         }
         break;
       }
@@ -253,6 +285,7 @@ export async function githubRoutes(
 
         const reviewStatus = reviewState === 'approved' ? 'approved' : reviewState === 'changes_requested' ? 'changes_requested' : 'reviewed';
         updatePrReviewStatusStmt.run(reviewStatus, prNumber);
+        broadcastToDashboard({ type: 'pr:updated', prNumber, reviewStatus });
         break;
       }
     }

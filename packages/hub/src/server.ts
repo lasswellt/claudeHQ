@@ -143,10 +143,10 @@ export async function createServer(config: HubConfig): Promise<ReturnType<typeof
   await templateRoutes(app, db);
   await healthHistoryRoutes(app, db);
   await repoRoutes(app, db);
-  await jobRoutes(app, db, agentHandler);
   const githubClient = new GitHubClient(db, app.log);
   await githubClient.initialize();
-  await githubRoutes(app, db, githubClient);
+  await jobRoutes(app, db, agentHandler, githubClient);
+  await githubRoutes(app, db, githubClient, broadcastToDashboard);
   await costRoutes(app, db);
   await scheduledTaskRoutes(app, db);
   await agentRoutes(app, orchestrator);

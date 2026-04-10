@@ -2,6 +2,7 @@ import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
 import type Database from 'better-sqlite3';
 import type { FastifyBaseLogger } from 'fastify';
+import type { CheckRunClient } from './checks-lifecycle.js';
 
 export interface GitHubConfig {
   authMethod: 'github_app' | 'pat' | 'none';
@@ -177,5 +178,55 @@ export class GitHubClient {
     } catch (err) {
       this.logger.error({ err }, 'Failed to comment on issue');
     }
+  }
+
+  /** Returns the HEAD commit SHA for a branch, or null when the client is
+   *  not configured or the ref does not exist. */
+  async getBranchSha(owner: string, repo: string, branch: string): Promise<string | null> {
+    if (!this.octokit) return null;
+    try {
+      const { data } = await this.octokit.rest.repos.getBranch({ owner, repo, branch });
+      return data.commit.sha;
+    } catch (err) {
+      this.logger.error({ err, owner, repo, branch }, 'Failed to get branch SHA');
+      return null;
+    }
+  }
+
+  /** Returns a `CheckRunClient` adapter backed by this Octokit instance.
+   *  The adapter matches the interface expected by `createChecksLifecycle`. */
+  asCheckRunClient(): CheckRunClient {
+    const octokit = this.octokit;
+    const logger = this.logger;
+    return {
+      async createCheckRun(req) {
+        if (!octokit) throw new Error('GitHub client not configured');
+        const { data } = await octokit.rest.checks.create({
+          owner: req.owner,
+          repo: req.repo,
+          head_sha: req.head_sha,
+          name: req.name,
+          status: req.status,
+          started_at: req.started_at,
+          details_url: req.details_url,
+          external_id: req.external_id,
+        });
+        logger.info({ checkRunId: data.id }, 'Check run created');
+        return { id: data.id };
+      },
+      async updateCheckRun(req) {
+        if (!octokit) throw new Error('GitHub client not configured');
+        await octokit.rest.checks.update({
+          owner: req.owner,
+          repo: req.repo,
+          check_run_id: req.check_run_id,
+          status: req.status,
+          conclusion: req.conclusion,
+          completed_at: req.completed_at,
+          output: req.output,
+        });
+        logger.info({ checkRunId: req.check_run_id, conclusion: req.conclusion }, 'Check run updated');
+      },
+    };
   }
 }

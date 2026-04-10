@@ -119,6 +119,15 @@ export class ContainerOrchestrator {
   }
 
   async spawn(opts: SpawnOptions): Promise<SpawnedAgentRecord> {
+    // Enforce max container limit before spawning
+    const activeCount = this.list()
+      .filter((a) => ACTIVE_STATUSES.includes(a.status as ActiveStatus)).length;
+    if (activeCount >= this.config.agentMaxContainers) {
+      throw new Error(
+        `Agent container limit reached (${activeCount}/${this.config.agentMaxContainers}). Stop or remove existing agents first.`,
+      );
+    }
+
     const id = randomUUID();
     const branch = opts.branch ?? 'main';
 

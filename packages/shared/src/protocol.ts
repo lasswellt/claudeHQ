@@ -75,7 +75,9 @@ export const agentSessionEndedSchema = z.object({
 export const agentRecordingUploadSchema = z.object({
   type: z.literal('agent:recording:upload'),
   sessionId: z.string(),
-  chunks: z.array(outputChunkSchema),
+  chunks: z.array(
+    z.object({ ts: z.number(), data: z.string().max(65536) }),
+  ).max(1000),
   final: z.boolean(),
 });
 
@@ -136,7 +138,7 @@ export const hubSessionKillSchema = z.object({
 export const hubSessionInputSchema = z.object({
   type: z.literal('hub:session:input'),
   sessionId: z.string(),
-  input: z.string(),
+  input: z.string().max(65536),
 });
 
 export const hubQueueAddSchema = z.object({
@@ -215,6 +217,16 @@ export const agentRemovedSchema = z.object({
   agentId: z.string(),
 });
 
+export const prUpdatedSchema = z.object({
+  type: z.literal('pr:updated'),
+  prNumber: z.number().optional(),
+  headBranch: z.string().optional(),
+  status: z.enum(['merged', 'closed']).optional(),
+  ciStatus: z.enum(['passing', 'failing']).optional(),
+  reviewStatus: z.string().optional(),
+});
+export type PrUpdatedMessage = z.infer<typeof prUpdatedSchema>;
+
 export const hubToDashboardSchema = z.discriminatedUnion('type', [
   sessionOutputSchema,
   sessionUpdatedSchema,
@@ -223,6 +235,7 @@ export const hubToDashboardSchema = z.discriminatedUnion('type', [
   notificationSchema,
   agentSpawnedSchema,
   agentRemovedSchema,
+  prUpdatedSchema,
   // Approval lifecycle fan-out to dashboards
   approvalRequestedMsg,
   approvalResolvedMsg,
@@ -234,7 +247,8 @@ export type HubToDashboardMessage = z.infer<typeof hubToDashboardSchema>;
 // Dashboard → Hub messages
 // ═══════════════════════════════════════════════════════════════
 
-const resourceTypeSchema = z.enum(['session', 'machine', 'queue']);
+export const resourceTypeSchema = z.enum(['session', 'machine', 'queue']);
+export type ResourceType = z.infer<typeof resourceTypeSchema>;
 
 export const subscribeSchema = z.object({
   type: z.literal('subscribe'),

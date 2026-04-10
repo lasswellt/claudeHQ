@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import type { AgentHandler } from '../ws/agent-handler.js';
+import type { GitHubClient } from '../github/client.js';
+import { createChecksLifecycle, jobStatusToConclusion } from '../github/checks-lifecycle.js';
 import {
   planBatch,
   cancelBatch,
@@ -14,6 +16,7 @@ export async function jobRoutes(
   app: FastifyInstance,
   db: Database.Database,
   agentHandler: AgentHandler,
+  githubClient: GitHubClient,
 ): Promise<void> {
   const insertJobStmt = db.prepare(`
     INSERT INTO jobs (id, repo_id, machine_id, title, prompt, branch, status,
@@ -33,6 +36,9 @@ export async function jobRoutes(
   const updateJobWorkspaceStmt = db.prepare('UPDATE jobs SET workspace_id = ? WHERE id = ?');
   const getRunningSessionsByJobStmt = db.prepare(
     "SELECT id FROM sessions WHERE job_id = ? AND status = 'running'",
+  );
+  const updateJobStatusEndedStmt = db.prepare(
+    'UPDATE jobs SET status = ?, ended_at = unixepoch() WHERE id = ?',
   );
 
   // List jobs
@@ -107,15 +113,43 @@ export async function jobRoutes(
       updateJobWorkspaceStmt.run(workspaceId, id);
     })();
 
-    // TODO: replace with hub:container:create (defined in @chq/shared workforce.ts) once the
-    // agent's container-worktree handler is wired up to handle that message type.
-    agentHandler.sendToAgent(machineId, {
-      type: 'hub:session:start' as const,
-      sessionId: id,
-      prompt: body.prompt,
-      cwd: `/workspaces/${id}`,
-      flags: [],
-    });
+    // Send hub:container:create so the agent clones the repo, prepares a worktree,
+    // and runs Claude Code in a sandboxed container.  Fall back to a plain PTY
+    // session only if the repo has no URL (shouldn't happen given the FK, but
+    // guards against unexpected schema drift).
+    const repoUrl = (repo.url as string | undefined) ?? '';
+    if (repoUrl) {
+      const setupCommands = repo.setup_commands
+        ? (JSON.parse(repo.setup_commands as string) as string[])
+        : [];
+      const preFlightCommands = repo.pre_flight_commands
+        ? (JSON.parse(repo.pre_flight_commands as string) as string[])
+        : [];
+      const repoEnvVars = repo.env_vars
+        ? (JSON.parse(repo.env_vars as string) as Record<string, string>)
+        : {};
+
+      agentHandler.sendToAgent(machineId, {
+        type: 'hub:container:create',
+        jobId: id,
+        repoId: body.repoId,
+        repoUrl,
+        branch: body.branch ?? (repo.default_branch as string | undefined) ?? 'main',
+        prompt: body.prompt,
+        setupCommands,
+        preFlightCommands,
+        env: repoEnvVars,
+      });
+    } else {
+      // Legacy PTY path — no repo URL available
+      agentHandler.sendToAgent(machineId, {
+        type: 'hub:session:start',
+        sessionId: id,
+        prompt: body.prompt,
+        cwd: `/workspaces/${id}`,
+        flags: [],
+      });
+    }
 
     app.log.info({ jobId: id, repoId: body.repoId, machineId }, 'Job created');
 
@@ -152,6 +186,57 @@ export async function jobRoutes(
     if (!job) return reply.code(404).send({ error: 'Job not found' });
     updateJobStatusStmt.run('pending', req.params.id);
     return { retried: true };
+  });
+
+  // CAP-062 / story 016-007: Update job status to a terminal state and finish
+  // the associated GitHub Check Run so it appears on the PR.
+  const terminalStatuses = new Set(['completed', 'failed', 'cancelled', 'timed_out']);
+  const updateStatusBody = z.object({
+    status: z.enum(['completed', 'failed', 'cancelled', 'timed_out']),
+    summary: z.string().optional(),
+  });
+
+  app.patch<{ Params: { id: string } }>('/api/jobs/:id/status', async (req, reply) => {
+    const body = updateStatusBody.parse(req.body);
+    const job = getJobStmt.get(req.params.id) as Record<string, unknown> | undefined;
+    if (!job) return reply.code(404).send({ error: 'Job not found' });
+
+    const currentStatus = job.status as string;
+    if (terminalStatuses.has(currentStatus)) {
+      return reply.code(400).send({
+        error: `Job is already in terminal status '${currentStatus}'`,
+      });
+    }
+
+    updateJobStatusEndedStmt.run(body.status, req.params.id);
+    app.log.info({ jobId: req.params.id, status: body.status }, 'Job status updated');
+
+    // Finish the GitHub Check Run if one was recorded for this job
+    const checkRunId = job.check_run_id as number | null;
+    if (checkRunId && githubClient.isConfigured) {
+      const repo = getRepoByIdStmt.get(job.repo_id as string) as Record<string, unknown> | undefined;
+      if (repo) {
+        const checksLifecycle = createChecksLifecycle(githubClient.asCheckRunClient());
+        const conclusion = jobStatusToConclusion(body.status);
+        const summary = body.summary ?? `Job ${body.status} with conclusion: ${conclusion}`;
+        try {
+          await checksLifecycle.finish({
+            checkRunId,
+            owner: repo.owner as string,
+            repo: repo.name as string,
+            conclusion,
+            summary,
+            title: `Claude HQ: ${job.title as string}`,
+          });
+          app.log.info({ jobId: req.params.id, checkRunId, conclusion }, 'Check run finished');
+        } catch (err) {
+          // Log but don't fail the status update response
+          app.log.error({ err, jobId: req.params.id, checkRunId }, 'Failed to finish check run');
+        }
+      }
+    }
+
+    return getJobStmt.get(req.params.id);
   });
 
   // CAP-055 / story 016-004: batch jobs (planner-backed).

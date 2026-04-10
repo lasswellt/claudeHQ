@@ -17,14 +17,23 @@ export async function agentRoutes(
   app.post('/api/agents/spawn', async (request, reply) => {
     const body = spawnBodySchema.parse(request.body);
 
-    const agent = await orchestrator.spawn({
-      repoUrl: body.repoUrl,
-      repoId: body.repoId,
-      branch: body.branch,
-      displayName: body.displayName,
-    });
+    try {
+      const agent = await orchestrator.spawn({
+        repoUrl: body.repoUrl,
+        repoId: body.repoId,
+        branch: body.branch,
+        displayName: body.displayName,
+      });
 
-    return reply.code(201).send(agent);
+      return reply.code(201).send(agent);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('container limit reached')) {
+        return reply.code(429).send({ error: message });
+      }
+      app.log.error({ err }, 'Failed to spawn agent');
+      return reply.code(500).send({ error: 'Failed to spawn agent' });
+    }
   });
 
   // GET /api/agents — list all spawned agents, optionally filtered by status
