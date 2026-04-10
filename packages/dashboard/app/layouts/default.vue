@@ -45,6 +45,7 @@ const navItems = [
   { title: 'Pull Requests', icon: 'mdi-source-pull', to: '/prs' },
   { title: 'Sessions', icon: 'mdi-console', to: '/sessions' },
   { title: 'Machines', icon: 'mdi-server', to: '/machines' },
+  { title: 'Agents', icon: 'mdi-robot', to: '/agents' },
   { title: 'Queue', icon: 'mdi-playlist-play', to: '/queues' },
   { title: 'Scheduled', icon: 'mdi-clock-outline', to: '/scheduled-tasks' },
   { title: 'Approvals', icon: 'mdi-shield-check', to: '/approvals' },

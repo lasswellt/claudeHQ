@@ -12,6 +12,9 @@ export {
   machineStatusSchema,
   queueTaskSchema,
   notificationRecordSchema,
+  type SpawnedAgentRecord,
+  type SpawnedAgentStatus,
+  spawnedAgentRecordSchema,
 } from './types.js';
 
 export {
