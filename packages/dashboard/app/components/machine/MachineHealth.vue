@@ -12,13 +12,18 @@ interface HealthPoint {
 
 const healthData = ref<HealthPoint[]>([]);
 const loading = ref(true);
+const error = ref<string | null>(null);
 const hours = ref(24);
 
 async function fetchHealth(): Promise<void> {
   loading.value = true;
+  error.value = null;
   try {
     const res = await fetch(`/api/machines/${props.machineId}/health?hours=${hours.value}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     healthData.value = (await res.json()) as HealthPoint[];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load health data';
   } finally {
     loading.value = false;
   }
@@ -48,6 +53,12 @@ function sparklineValues(key: 'cpu_percent' | 'mem_percent'): number[] {
     </v-card-title>
     <v-card-text>
       <v-skeleton-loader v-if="loading" type="image" height="120" />
+      <v-alert v-else-if="error" type="error" variant="tonal">
+        {{ error }}
+        <template #append>
+          <v-btn variant="text" @click="fetchHealth">Retry</v-btn>
+        </template>
+      </v-alert>
       <template v-else-if="healthData.length > 0">
         <div class="mb-3">
           <div class="text-caption text-medium-emphasis mb-1">CPU %</div>

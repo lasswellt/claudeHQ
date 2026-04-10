@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useMachinesStore } from '../../stores/machines';
 
 const props = defineProps<{
@@ -15,6 +15,12 @@ const emit = defineEmits<{
 const machinesStore = useMachinesStore();
 const machineId = ref(props.defaultMachineId ?? '');
 const prompt = ref('');
+
+// Keep machineId in sync when the parent changes the prop (e.g. navigating
+// between machine pages without unmounting the modal).
+watch(() => props.defaultMachineId, (val) => {
+  if (val !== undefined) machineId.value = val;
+});
 const cwd = ref('');
 const tags = ref<string[]>([]);
 const submitting = ref(false);
@@ -38,12 +44,12 @@ async function submit(): Promise<void> {
       }),
     });
 
+    const data = (await res.json()) as { error?: string; id?: string };
     if (!res.ok) {
-      const data = (await res.json()) as { error: string };
-      throw new Error(data.error);
+      throw new Error(data.error ?? `HTTP ${res.status}`);
     }
 
-    const session = (await res.json()) as { id: string };
+    const session = data as { id: string };
     emit('created', session.id);
     emit('update:modelValue', false);
     prompt.value = '';

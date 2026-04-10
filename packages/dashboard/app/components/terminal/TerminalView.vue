@@ -10,7 +10,7 @@ const props = defineProps<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-const { write } = useTerminal(containerRef);
+const { write, clear } = useTerminal(containerRef);
 const ws = useWebSocket();
 
 let unsubscribeOutput: (() => void) | null = null;
@@ -35,6 +35,7 @@ onUnmounted(() => {
 
 watch(() => props.sessionId, (newId, oldId) => {
   if (oldId) ws.unsubscribe('session', oldId);
+  clear();
   ws.subscribe('session', newId);
 });
 </script>

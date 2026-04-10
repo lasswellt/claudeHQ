@@ -5,6 +5,7 @@ definePageMeta({ layout: 'default' });
 
 const status = ref<{ configured: boolean; authMethod: string; hasApp: boolean; hasInstallation: boolean } | null>(null);
 const loading = ref(true);
+const error = ref<string | null>(null);
 const patToken = ref('');
 const saving = ref(false);
 const testResult = ref<string | null>(null);
@@ -14,51 +15,78 @@ onMounted(fetchStatus);
 
 async function fetchStatus(): Promise<void> {
   loading.value = true;
-  const res = await fetch('/api/github/status');
-  status.value = (await res.json()) as typeof status.value;
-  loading.value = false;
+  error.value = null;
+  try {
+    const res = await fetch('/api/github/status');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    status.value = (await res.json()) as typeof status.value;
 
-  if (status.value?.configured) step.value = 4;
-  else if (status.value?.hasApp) step.value = 3;
+    if (status.value?.configured) step.value = 4;
+    else if (status.value?.hasApp) step.value = 3;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load GitHub status';
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function savePat(): Promise<void> {
   if (!patToken.value) return;
   saving.value = true;
-  await fetch('/api/github/pat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: patToken.value }),
-  });
-  patToken.value = '';
-  saving.value = false;
-  await fetchStatus();
+  error.value = null;
+  try {
+    const res = await fetch('/api/github/pat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: patToken.value }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Only clear token on success
+    patToken.value = '';
+    await fetchStatus();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to save PAT';
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function testConnection(): Promise<void> {
-  const res = await fetch('/api/github/test', { method: 'POST' });
-  const data = (await res.json()) as { connected: boolean };
-  testResult.value = data.connected ? 'Connected successfully!' : 'Connection failed.';
+  error.value = null;
+  try {
+    const res = await fetch('/api/github/test', { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as { connected: boolean };
+    testResult.value = data.connected ? 'Connected successfully!' : 'Connection failed.';
+  } catch (e) {
+    testResult.value = e instanceof Error ? e.message : 'Connection test failed';
+  }
 }
 
 async function startManifestFlow(): Promise<void> {
+  error.value = null;
   // Fetch manifest and redirect to GitHub
-  const res = await fetch('/api/github/manifest');
-  const manifest = await res.json();
+  try {
+    const res = await fetch('/api/github/manifest');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const manifest = await res.json();
 
-  // Create a form and submit to GitHub
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = 'https://github.com/settings/apps/new';
+    // Create a form and submit to GitHub
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'https://github.com/settings/apps/new';
 
-  const input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'manifest';
-  input.value = JSON.stringify(manifest);
-  form.appendChild(input);
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'manifest';
+    input.value = JSON.stringify(manifest);
+    form.appendChild(input);
 
-  document.body.appendChild(form);
-  form.submit();
+    document.body.appendChild(form);
+    form.submit();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to start GitHub App flow';
+  }
 }
 </script>
 
@@ -77,6 +105,13 @@ async function startManifestFlow(): Promise<void> {
     </div>
 
     <v-skeleton-loader v-if="loading" type="card" />
+
+    <v-alert v-else-if="error" type="error" variant="tonal" class="mb-4">
+      {{ error }}
+      <template #append>
+        <v-btn variant="text" @click="fetchStatus">Retry</v-btn>
+      </template>
+    </v-alert>
 
     <template v-else>
       <!-- Status card -->
