@@ -13,9 +13,17 @@ services:
       - CHQ_HUB_DASHBOARD_STATIC_PATH=/app/dashboard-static
       - CHQ_HUB_LOGLEVEL=${CHQ_HUB_LOGLEVEL:-info}
       - CHQ_AGENT_TOKEN=${CHQ_AGENT_TOKEN:-}
+      - CHQ_HUB_AGENT_IMAGE=chq-agent:local
+      - CHQ_HUB_CLAUDE_BINARY_HOST_PATH=${CHQ_HUB_CLAUDE_BINARY_HOST_PATH:-}
+      - CHQ_HUB_AGENT_NETWORK_NAME=chq-internal
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
       - ./data/db:/app/data/db
       - ./data/recordings:/app/data/recordings
+      - /var/run/docker.sock:/var/run/docker.sock
+      - chq-repos:/data/repos
+    networks:
+      - chq-internal
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:7700/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -28,3 +36,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  chq-internal:
+    driver: bridge
+
+volumes:
+  chq-repos:

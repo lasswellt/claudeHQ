@@ -12,7 +12,16 @@
     "slug": "remote-console-patterns",
     "title": "Remote Console Patterns: Portainer, Kubernetes & Beyond for Claude Code Instance Management",
     "date": "2026-03-15",
-    "tags": ["architecture", "ux", "portainer", "kubernetes", "dashboard", "queue", "scheduling", "templates"],
+    "tags": [
+      "architecture",
+      "ux",
+      "portainer",
+      "kubernetes",
+      "dashboard",
+      "queue",
+      "scheduling",
+      "templates"
+    ],
     "packages": ["hub", "dashboard", "shared", "agent"],
     "status": "complete",
     "path": "docs/_research/2026-03-15_remote-console-patterns.md"
@@ -21,7 +30,18 @@
     "slug": "workforce-management-platform",
     "title": "Workforce Management Platform: Claude Code Agent Orchestration Across Codebases",
     "date": "2026-03-15",
-    "tags": ["architecture", "workforce", "docker", "wsl2", "git", "github", "sdk", "cli", "scheduling", "repos"],
+    "tags": [
+      "architecture",
+      "workforce",
+      "docker",
+      "wsl2",
+      "git",
+      "github",
+      "sdk",
+      "cli",
+      "scheduling",
+      "repos"
+    ],
     "packages": ["agent", "hub", "dashboard", "shared"],
     "status": "complete",
     "path": "docs/_research/2026-03-15_workforce-management-platform.md"
@@ -30,7 +50,16 @@
     "slug": "approval-request-handling",
     "title": "Approval Request Handling: Permission, Input & Policy Architecture",
     "date": "2026-03-15",
-    "tags": ["architecture", "permissions", "approvals", "hooks", "policy", "notifications", "ux", "dashboard"],
+    "tags": [
+      "architecture",
+      "permissions",
+      "approvals",
+      "hooks",
+      "policy",
+      "notifications",
+      "ux",
+      "dashboard"
+    ],
     "packages": ["agent", "hub", "dashboard", "shared"],
     "status": "complete",
     "path": "docs/_research/2026-03-15_approval-request-handling.md"
@@ -48,7 +77,17 @@
     "slug": "self-hosted-docker-deployment",
     "title": "Self-Hosted Docker Deployment: Complete Docker Compose for Claude HQ",
     "date": "2026-03-15",
-    "tags": ["docker", "deployment", "docker-compose", "tailscale", "sqlite", "caddy", "nginx", "monorepo", "dockerfile"],
+    "tags": [
+      "docker",
+      "deployment",
+      "docker-compose",
+      "tailscale",
+      "sqlite",
+      "caddy",
+      "nginx",
+      "monorepo",
+      "dockerfile"
+    ],
     "packages": ["hub", "dashboard", "agent", "shared"],
     "status": "complete",
     "path": "docs/_research/2026-03-15_self-hosted-docker-deployment.md"
@@ -57,9 +96,37 @@
     "slug": "container-orchestration-sandboxed-autonomy",
     "title": "Container Orchestration with Sandboxed Autonomy: Hub-Managed Docker for Claude Code",
     "date": "2026-03-16",
-    "tags": ["docker", "orchestration", "containers", "sandbox", "security", "autonomy", "volumes", "worktrees"],
+    "tags": [
+      "docker",
+      "orchestration",
+      "containers",
+      "sandbox",
+      "security",
+      "autonomy",
+      "volumes",
+      "worktrees"
+    ],
     "packages": ["hub", "agent", "shared"],
     "status": "complete",
     "path": "docs/_research/2026-03-16_container-orchestration-sandboxed-autonomy.md"
+  },
+  {
+    "slug": "docker-agent-spawning-github-ux-improvements",
+    "title": "Docker Agent Spawning, GitHub UX Mapping & Implementation Improvements",
+    "date": "2026-04-09",
+    "tags": [
+      "docker",
+      "agents",
+      "spawning",
+      "github",
+      "dashboard",
+      "ux",
+      "deployment",
+      "readme",
+      "improvements"
+    ],
+    "packages": ["hub", "agent", "dashboard", "shared"],
+    "status": "complete",
+    "path": "docs/_research/2026-04-09_docker-agent-spawning-github-ux-improvements.md"
   }
 ]

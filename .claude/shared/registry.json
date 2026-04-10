@@ -1,8 +1,8 @@
 {
   "lastResearch": {
-    "slug": "self-hosted-docker-deployment",
-    "date": "2026-03-15",
-    "topic": "Self-hosted Docker deployment with complete Docker Compose"
+    "slug": "docker-agent-spawning-github-ux-improvements",
+    "date": "2026-04-09",
+    "topic": "Docker agent spawning, GitHub UX mapping, and implementation improvements"
   },
   "lastExecution": {
     "skill": "sprint-plan",
