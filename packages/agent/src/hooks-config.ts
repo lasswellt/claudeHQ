@@ -15,10 +15,22 @@ export function writeHooksConfig(hubUrl: string): void {
   const httpUrl = hubUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
 
   const hooksConfig = {
+    SessionStart: [
+      {
+        matcher: '',
+        hooks: [{ type: 'http', url: `${httpUrl}/hooks/session-start`, timeout: 10 }],
+      },
+    ],
     Stop: [
       {
         matcher: '',
         hooks: [{ type: 'http', url: `${httpUrl}/hooks/stop`, timeout: 10 }],
+      },
+    ],
+    Notification: [
+      {
+        matcher: '',
+        hooks: [{ type: 'http', url: `${httpUrl}/hooks/notification`, timeout: 10 }],
       },
     ],
     PreToolUse: [
@@ -33,10 +45,22 @@ export function writeHooksConfig(hubUrl: string): void {
         hooks: [{ type: 'http', url: `${httpUrl}/hooks/post-tool-use`, timeout: 10 }],
       },
     ],
+    SubagentStart: [
+      {
+        matcher: '',
+        hooks: [{ type: 'http', url: `${httpUrl}/hooks/subagent-start`, timeout: 10 }],
+      },
+    ],
     SubagentStop: [
       {
         matcher: '',
         hooks: [{ type: 'http', url: `${httpUrl}/hooks/subagent-stop`, timeout: 10 }],
+      },
+    ],
+    PreCompact: [
+      {
+        matcher: '',
+        hooks: [{ type: 'http', url: `${httpUrl}/hooks/pre-compact`, timeout: 10 }],
       },
     ],
   };

@@ -62,4 +62,47 @@ export async function hookRoutes(app: FastifyInstance, dal: DAL): Promise<void> 
 
     return { status: 'ok' };
   });
+
+  app.post('/hooks/session-start', async (req, reply) => {
+    if (!checkHookToken(req, reply)) return;
+    const payload = hookBodySchema.parse(req.body);
+    const { session_id: sessionId } = payload;
+
+    dal.insertSessionEvent(sessionId, 'session_start', JSON.stringify(payload));
+    app.log.info({ sessionId }, 'SessionStart hook received');
+
+    return { status: 'ok' };
+  });
+
+  app.post('/hooks/notification', async (req, reply) => {
+    if (!checkHookToken(req, reply)) return;
+    const payload = hookBodySchema.parse(req.body);
+    const { session_id: sessionId } = payload;
+
+    dal.insertSessionEvent(sessionId, 'notification', JSON.stringify(payload));
+    app.log.info({ sessionId, payload }, 'Notification hook received');
+
+    return { status: 'ok' };
+  });
+
+  app.post('/hooks/subagent-start', async (req, reply) => {
+    if (!checkHookToken(req, reply)) return;
+    const payload = hookBodySchema.parse(req.body);
+    const { session_id: sessionId } = payload;
+
+    dal.insertSessionEvent(sessionId, 'subagent_start', JSON.stringify(payload));
+
+    return { status: 'ok' };
+  });
+
+  app.post('/hooks/pre-compact', async (req, reply) => {
+    if (!checkHookToken(req, reply)) return;
+    const payload = hookBodySchema.parse(req.body);
+    const { session_id: sessionId } = payload;
+
+    dal.insertSessionEvent(sessionId, 'pre_compact', JSON.stringify(payload));
+    app.log.info({ sessionId }, 'PreCompact hook received — session context nearing limit');
+
+    return { status: 'ok' };
+  });
 }
