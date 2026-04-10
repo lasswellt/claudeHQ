@@ -3,7 +3,7 @@ import {
   encryptSecret,
   decryptSecret,
   generateMasterPassphrase,
-} from '../credential-crypto.js';
+} from '../cred-envelope.js';
 
 // CAP-060 / story 017-005: credential encryption at rest.
 

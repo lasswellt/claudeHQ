@@ -6,7 +6,7 @@ import {
   loadSecret,
   loadSecrets,
   MissingSecretError,
-} from '../secrets-loader.js';
+} from '../config-resolver.js';
 
 // CAP-099 / story 019-003: secrets loader.
 
