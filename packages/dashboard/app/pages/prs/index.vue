@@ -23,13 +23,23 @@ interface PRRecord {
 
 const prs = ref<PRRecord[]>([]);
 const loading = ref(true);
+const error = ref<string | null>(null);
 
-onMounted(async () => {
+async function fetchPrs(): Promise<void> {
   loading.value = true;
-  const res = await fetch('/api/prs');
-  prs.value = (await res.json()) as PRRecord[];
-  loading.value = false;
-});
+  error.value = null;
+  try {
+    const res = await fetch('/api/prs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    prs.value = (await res.json()) as PRRecord[];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load pull requests';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(fetchPrs);
 
 const statusColor: Record<string, string> = {
   open: 'success',
@@ -57,6 +67,12 @@ const ciColor: Record<string, string> = {
     <h1 class="text-h4 font-weight-bold mb-6">Pull Requests</h1>
 
     <v-skeleton-loader v-if="loading" type="table" />
+    <v-alert v-else-if="error" type="error" variant="tonal">
+      {{ error }}
+      <template #append>
+        <v-btn variant="text" @click="fetchPrs">Retry</v-btn>
+      </template>
+    </v-alert>
     <v-alert v-else-if="prs.length === 0" type="info" variant="tonal">
       No pull requests yet. PRs are created automatically when jobs complete (if auto_pr is enabled).
     </v-alert>

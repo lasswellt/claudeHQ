@@ -50,8 +50,19 @@ export function loadConfig<S extends z.ZodTypeAny>(
     try {
       const raw = readFileSync(filePath, 'utf-8');
       fileData = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      // File not found or invalid — proceed with env/defaults only
+    } catch (err: unknown) {
+      // Only ignore ENOENT (file not found); rethrow permission errors,
+      // JSON syntax errors, etc. so corrupt configs are not silently ignored.
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: string }).code === 'ENOENT'
+      ) {
+        // File not found — proceed with env/defaults only
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -63,9 +74,16 @@ export function loadConfig<S extends z.ZodTypeAny>(
           .slice(envPrefix.length)
           .toLowerCase()
           .replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-        // Attempt numeric coercion
-        const numVal = Number(value);
-        fileData[configKey] = isNaN(numVal) ? value : numVal;
+        // Attempt boolean coercion before numeric
+        if (value === 'true') {
+          fileData[configKey] = true;
+        } else if (value === 'false') {
+          fileData[configKey] = false;
+        } else {
+          // Attempt numeric coercion
+          const numVal = Number(value);
+          fileData[configKey] = isNaN(numVal) ? value : numVal;
+        }
       }
     }
   }

@@ -8,13 +8,23 @@ definePageMeta({ layout: 'default' });
 const router = useRouter();
 const jobs = ref<JobRecord[]>([]);
 const loading = ref(true);
+const error = ref<string | null>(null);
 
-onMounted(async () => {
+async function fetchJobs(): Promise<void> {
   loading.value = true;
-  const res = await fetch('/api/jobs');
-  jobs.value = (await res.json()) as JobRecord[];
-  loading.value = false;
-});
+  error.value = null;
+  try {
+    const res = await fetch('/api/jobs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    jobs.value = (await res.json()) as JobRecord[];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load jobs';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(fetchJobs);
 
 const statusColor: Record<string, string> = {
   pending: 'info',
@@ -43,6 +53,12 @@ const statusColor: Record<string, string> = {
     </div>
 
     <v-skeleton-loader v-if="loading" type="table" />
+    <v-alert v-else-if="error" type="error" variant="tonal">
+      {{ error }}
+      <template #append>
+        <v-btn variant="text" @click="fetchJobs">Retry</v-btn>
+      </template>
+    </v-alert>
     <v-alert v-else-if="jobs.length === 0" type="info" variant="tonal">
       No jobs yet. Launch one from the Repos page.
     </v-alert>

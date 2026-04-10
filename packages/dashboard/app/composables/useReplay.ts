@@ -28,7 +28,8 @@ export function useReplay() {
       chunks.value = text
         .split('\n')
         .filter((line) => line.trim())
-        .map((line) => JSON.parse(line) as ReplayChunk);
+        .map((line) => JSON.parse(line) as ReplayChunk)
+        .filter((chunk) => Number.isFinite(chunk.ts) && typeof chunk.data === 'string');
 
       if (chunks.value.length > 0) {
         duration.value = chunks.value[chunks.value.length - 1]!.ts;
@@ -96,6 +97,11 @@ export function useReplay() {
     while (chunkIndex < chunks.value.length) {
       const chunk = chunks.value[chunkIndex]!;
       const delta = chunk.ts - startTs;
+      if (!Number.isFinite(delta) || delta < 0) {
+        // Skip chunks with invalid timestamps to avoid tight loops
+        chunkIndex++;
+        continue;
+      }
       if (delta > 0) {
         // Schedule the next batch after the relative delay
         playTimer = setTimeout(scheduleNext, delta / speed.value);

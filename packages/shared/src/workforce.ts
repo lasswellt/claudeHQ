@@ -28,6 +28,7 @@ export type RepoRecord = z.infer<typeof repoRecordSchema>;
 export const workspaceStatusSchema = z.enum([
   'creating', 'preparing', 'ready', 'active', 'stale', 'cleanup', 'deleted',
 ]);
+export type WorkspaceStatus = z.infer<typeof workspaceStatusSchema>;
 
 export const workspaceRecordSchema = z.object({
   id: z.string(),
@@ -52,6 +53,7 @@ export const jobStatusSchema = z.enum([
   'pending', 'provisioning', 'preparing', 'running',
   'post_processing', 'completed', 'failed', 'cancelled',
 ]);
+export type JobStatus = z.infer<typeof jobStatusSchema>;
 
 export const jobRecordSchema = z.object({
   id: z.string(),

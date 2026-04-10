@@ -18,6 +18,7 @@ const showResume = ref(false);
 const resumePrompt = ref('');
 const killing = ref(false);
 const resuming = ref(false);
+const actionError = ref<string | null>(null);
 // CAP-017: terminal / events tab selector.
 const activeTab = ref<'terminal' | 'events'>('terminal');
 
@@ -40,9 +41,13 @@ const statusColor: Record<string, string> = {
 
 async function killSession(): Promise<void> {
   killing.value = true;
+  actionError.value = null;
   try {
-    await fetch(`/api/sessions/${sessionId.value}`, { method: 'DELETE' });
+    const res = await fetch(`/api/sessions/${sessionId.value}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Kill failed: HTTP ${res.status}`);
     showKillConfirm.value = false;
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : 'Failed to kill session';
   } finally {
     killing.value = false;
   }
@@ -51,16 +56,18 @@ async function killSession(): Promise<void> {
 async function resumeSession(): Promise<void> {
   if (!resumePrompt.value) return;
   resuming.value = true;
+  actionError.value = null;
   try {
     const res = await fetch(`/api/sessions/${sessionId.value}/resume`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: resumePrompt.value }),
     });
-    if (res.ok) {
-      const data = (await res.json()) as { id: string };
-      router.push(`/sessions/${data.id}`);
-    }
+    if (!res.ok) throw new Error(`Resume failed: HTTP ${res.status}`);
+    const data = (await res.json()) as { id: string };
+    router.push(`/sessions/${data.id}`);
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : 'Failed to resume session';
   } finally {
     resuming.value = false;
     showResume.value = false;
@@ -107,6 +114,10 @@ async function resumeSession(): Promise<void> {
         Kill
       </v-btn>
     </div>
+
+    <v-alert v-if="actionError" type="error" variant="tonal" closable class="mb-4" @click:close="actionError = null">
+      {{ actionError }}
+    </v-alert>
 
     <v-alert v-if="!session && !sessionsStore.loading" type="warning" variant="tonal">
       Session not found.

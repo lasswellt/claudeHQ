@@ -12,16 +12,20 @@ export interface NotificationEvent {
 export class NotificationEngine {
   private readonly db: Database.Database;
   private readonly logger: FastifyBaseLogger;
+  private readonly getConfigStmt: ReturnType<Database.Database['prepare']>;
+  private readonly insertNotificationStmt: ReturnType<Database.Database['prepare']>;
 
   constructor(db: Database.Database, logger: FastifyBaseLogger) {
     this.db = db;
     this.logger = logger;
+    this.getConfigStmt = db.prepare("SELECT * FROM notification_config WHERE id = 'default'");
+    this.insertNotificationStmt = db.prepare(
+      'INSERT INTO notifications (id, session_id, type, channel, payload, sent_at, delivered) VALUES (?, ?, ?, ?, ?, unixepoch(), 1)',
+    );
   }
 
   async dispatch(event: NotificationEvent): Promise<void> {
-    const config = this.db
-      .prepare("SELECT * FROM notification_config WHERE id = 'default'")
-      .get() as Record<string, unknown> | undefined;
+    const config = this.getConfigStmt.get() as Record<string, unknown> | undefined;
 
     if (!config || !(config.enabled as number)) return;
 
@@ -40,17 +44,13 @@ export class NotificationEngine {
     }
 
     // Store notification record
-    this.db
-      .prepare(
-        'INSERT INTO notifications (id, session_id, type, channel, payload, sent_at, delivered) VALUES (?, ?, ?, ?, ?, unixepoch(), 1)',
-      )
-      .run(
-        randomUUID(),
-        event.sessionId ?? null,
-        event.type,
-        'webhook',
-        JSON.stringify(event.data),
-      );
+    this.insertNotificationStmt.run(
+      randomUUID(),
+      event.sessionId ?? null,
+      event.type,
+      'webhook',
+      JSON.stringify(event.data),
+    );
   }
 
   private isAllowedWebhookUrl(url: string): boolean {

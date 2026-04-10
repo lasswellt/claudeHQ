@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -80,5 +80,9 @@ export function writeHooksConfig(hubUrl: string): void {
   if (!existsSync(settingsDir)) {
     mkdirSync(settingsDir, { recursive: true });
   }
-  writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+  // Atomic write: write to .tmp then rename (atomic on POSIX) to avoid
+  // a crash mid-write leaving a partial/corrupt settings file.
+  const tmpPath = settingsPath + '.tmp';
+  writeFileSync(tmpPath, JSON.stringify(settings, null, 2));
+  renameSync(tmpPath, settingsPath);
 }

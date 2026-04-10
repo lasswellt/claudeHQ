@@ -6,6 +6,7 @@ definePageMeta({ layout: 'default' });
 
 const repos = ref<RepoRecord[]>([]);
 const loading = ref(true);
+const error = ref<string | null>(null);
 const showImport = ref(false);
 const importUrl = ref('');
 const importing = ref(false);
@@ -14,23 +15,37 @@ onMounted(fetchRepos);
 
 async function fetchRepos(): Promise<void> {
   loading.value = true;
-  const res = await fetch('/api/repos');
-  repos.value = (await res.json()) as RepoRecord[];
-  loading.value = false;
+  error.value = null;
+  try {
+    const res = await fetch('/api/repos');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    repos.value = (await res.json()) as RepoRecord[];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load repositories';
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function importRepo(): Promise<void> {
   if (!importUrl.value) return;
   importing.value = true;
-  await fetch('/api/repos/import', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: importUrl.value }),
-  });
-  importUrl.value = '';
-  showImport.value = false;
-  importing.value = false;
-  await fetchRepos();
+  error.value = null;
+  try {
+    const res = await fetch('/api/repos/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: importUrl.value }),
+    });
+    if (!res.ok) throw new Error(`Import failed: HTTP ${res.status}`);
+    importUrl.value = '';
+    showImport.value = false;
+    await fetchRepos();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to import repository';
+  } finally {
+    importing.value = false;
+  }
 }
 </script>
 
@@ -44,6 +59,12 @@ async function importRepo(): Promise<void> {
     </div>
 
     <v-skeleton-loader v-if="loading" type="card" />
+    <v-alert v-else-if="error" type="error" variant="tonal">
+      {{ error }}
+      <template #append>
+        <v-btn variant="text" @click="fetchRepos">Retry</v-btn>
+      </template>
+    </v-alert>
     <v-alert v-else-if="repos.length === 0" type="info" variant="tonal">
       No repositories registered. Import one to get started.
     </v-alert>

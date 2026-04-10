@@ -8,6 +8,7 @@ import type { ApprovalRequest } from '@chq/shared/browser';
 definePageMeta({ layout: 'default' });
 
 const store = useApprovalsStore();
+const actionError = ref<string | null>(null);
 
 onMounted(() => store.fetchApprovals());
 
@@ -25,7 +26,12 @@ async function onDrawerResolve(
   decision: 'approve' | 'deny',
   opts: { editedInput?: string; responseText?: string },
 ): Promise<void> {
-  await store.respond(id, decision, opts.responseText, false, opts.editedInput);
+  try {
+    actionError.value = null;
+    await store.respond(id, decision, opts.responseText, false, opts.editedInput);
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : 'Failed to resolve approval';
+  }
 }
 
 const riskColor: Record<string, string> = {
@@ -57,15 +63,21 @@ async function onApproveConfirm(
   rememberAsRule: boolean,
   _ruleName: string | null,
 ): Promise<void> {
-  // Note: rule name customization is reflected in the UI preview,
-  // but the hub currently auto-generates the saved rule's name from
-  // the tool. Propagating the custom name needs a small hub schema
-  // bump — tracked for a future story.
-  await store.respond(id, 'approve', undefined, rememberAsRule);
+  try {
+    actionError.value = null;
+    await store.respond(id, 'approve', undefined, rememberAsRule);
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : 'Failed to approve';
+  }
 }
 
 async function handleDeny(id: string): Promise<void> {
-  await store.respond(id, 'deny');
+  try {
+    actionError.value = null;
+    await store.respond(id, 'deny');
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : 'Failed to deny';
+  }
 }
 
 async function bulkApproveAllLowRisk(): Promise<void> {
@@ -73,7 +85,12 @@ async function bulkApproveAllLowRisk(): Promise<void> {
     .filter((a) => a.risk_level === 'low' || a.risk_level === 'medium')
     .map((a) => a.id);
   if (lowRiskIds.length > 0) {
-    await store.bulkRespond(lowRiskIds, 'approve');
+    try {
+      actionError.value = null;
+      await store.bulkRespond(lowRiskIds, 'approve');
+    } catch (e) {
+      actionError.value = e instanceof Error ? e.message : 'Bulk approve failed';
+    }
   }
 }
 </script>
@@ -102,6 +119,10 @@ async function bulkApproveAllLowRisk(): Promise<void> {
         </v-btn>
       </div>
     </div>
+
+    <v-alert v-if="actionError" type="error" variant="tonal" closable class="mb-4" @click:close="actionError = null">
+      {{ actionError }}
+    </v-alert>
 
     <v-skeleton-loader v-if="store.loading" type="table" />
     <v-alert v-else-if="store.error" type="error" variant="tonal">

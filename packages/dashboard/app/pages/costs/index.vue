@@ -17,21 +17,35 @@ const byRepo = ref<CostByEntity[]>([]);
 const byMachine = ref<CostByEntity[]>([]);
 const daily = ref<DailyCost[]>([]);
 const loading = ref(true);
+const error = ref<string | null>(null);
 
-onMounted(async () => {
+async function fetchCosts(): Promise<void> {
   loading.value = true;
-  const [s, r, m, d] = await Promise.all([
-    fetch('/api/costs/summary').then((r) => r.json()),
-    fetch('/api/costs/by-repo').then((r) => r.json()),
-    fetch('/api/costs/by-machine').then((r) => r.json()),
-    fetch('/api/costs/daily').then((r) => r.json()),
-  ]);
-  summary.value = s as CostSummary;
-  byRepo.value = r as CostByEntity[];
-  byMachine.value = m as CostByEntity[];
-  daily.value = d as DailyCost[];
-  loading.value = false;
-});
+  error.value = null;
+  try {
+    const fetchJson = async (url: string): Promise<unknown> => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+      return res.json();
+    };
+    const [s, r, m, d] = await Promise.all([
+      fetchJson('/api/costs/summary'),
+      fetchJson('/api/costs/by-repo'),
+      fetchJson('/api/costs/by-machine'),
+      fetchJson('/api/costs/daily'),
+    ]);
+    summary.value = s as CostSummary;
+    byRepo.value = r as CostByEntity[];
+    byMachine.value = m as CostByEntity[];
+    daily.value = d as DailyCost[];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load cost data';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(fetchCosts);
 
 function formatUsd(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -67,6 +81,12 @@ function exportCsv(): void {
     </div>
 
     <v-skeleton-loader v-if="loading" type="card" />
+    <v-alert v-else-if="error" type="error" variant="tonal">
+      {{ error }}
+      <template #append>
+        <v-btn variant="text" @click="fetchCosts">Retry</v-btn>
+      </template>
+    </v-alert>
 
     <template v-else-if="summary">
       <!-- Summary cards -->

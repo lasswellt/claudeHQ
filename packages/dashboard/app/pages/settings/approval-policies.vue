@@ -8,10 +8,14 @@ const rules = ref<ApprovalPolicyRule[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
+const deleteConfirmId = ref<string | null>(null);
+
 async function fetchRules(): Promise<void> {
   loading.value = true;
+  error.value = null;
   try {
     const res = await fetch('/api/approval-policies');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     rules.value = (await res.json()) as ApprovalPolicyRule[];
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to fetch';
@@ -21,8 +25,26 @@ async function fetchRules(): Promise<void> {
 }
 
 async function deleteRule(id: string): Promise<void> {
-  await fetch(`/api/approval-policies/${id}`, { method: 'DELETE' });
-  await fetchRules();
+  error.value = null;
+  try {
+    const res = await fetch(`/api/approval-policies/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await fetchRules();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to delete rule';
+  } finally {
+    deleteConfirmId.value = null;
+  }
+}
+
+function formatToolNames(value: unknown): string {
+  if (!value) return '';
+  try {
+    const parsed = JSON.parse(value as string) as string[];
+    return parsed.join(', ');
+  } catch {
+    return String(value);
+  }
 }
 
 const actionColor: Record<string, string> = {
@@ -55,7 +77,7 @@ onMounted(() => fetchRules());
       density="comfortable"
     >
       <template #item.match_tool_name="{ value }">
-        <span v-if="value">{{ JSON.parse(value as string).join(', ') }}</span>
+        <span v-if="value">{{ formatToolNames(value) }}</span>
         <span v-else class="text-medium-emphasis">Any</span>
       </template>
       <template #item.action="{ value }">
@@ -74,9 +96,21 @@ onMounted(() => fetchRules());
           size="x-small"
           variant="text"
           color="error"
-          @click="deleteRule((item as { id: string }).id)"
+          @click="deleteConfirmId = (item as { id: string }).id"
         />
       </template>
     </v-data-table>
+
+    <v-dialog :model-value="!!deleteConfirmId" max-width="400" @update:model-value="deleteConfirmId = null">
+      <v-card>
+        <v-card-title>Delete Policy Rule?</v-card-title>
+        <v-card-text>This action cannot be undone.</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="deleteConfirmId = null">Cancel</v-btn>
+          <v-btn color="error" variant="flat" @click="deleteRule(deleteConfirmId!)">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>

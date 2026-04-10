@@ -54,7 +54,9 @@ export {
   agentRemovedSchema,
   // Dashboard → Hub
   type DashboardToHubMessage,
+  type ResourceType,
   dashboardToHubSchema,
+  resourceTypeSchema,
   subscribeSchema,
   unsubscribeSchema,
 } from './protocol.js';
@@ -106,7 +108,9 @@ export {
 export {
   type RepoRecord,
   type WorkspaceRecord,
+  type WorkspaceStatus,
   type JobRecord,
+  type JobStatus,
   repoRecordSchema,
   workspaceStatusSchema,
   workspaceRecordSchema,

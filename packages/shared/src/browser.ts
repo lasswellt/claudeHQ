@@ -57,7 +57,9 @@ export {
 export {
   type RepoRecord,
   type WorkspaceRecord,
+  type WorkspaceStatus,
   type JobRecord,
+  type JobStatus,
   repoRecordSchema,
   workspaceRecordSchema,
   jobRecordSchema,

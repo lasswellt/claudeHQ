@@ -8,6 +8,7 @@ definePageMeta({ layout: 'default' });
 const machinesStore = useMachinesStore();
 const queuesByMachine = ref<Record<string, QueueTask[]>>({});
 const loading = ref(true);
+const error = ref<string | null>(null);
 const showAddTask = ref(false);
 const selectedMachine = ref('');
 const newPrompt = ref('');
@@ -20,9 +21,13 @@ onMounted(async () => {
 
 async function fetchQueues(): Promise<void> {
   loading.value = true;
+  error.value = null;
   try {
     const res = await fetch('/api/queues');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     queuesByMachine.value = (await res.json()) as Record<string, QueueTask[]>;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load queues';
   } finally {
     loading.value = false;
   }
@@ -30,28 +35,45 @@ async function fetchQueues(): Promise<void> {
 
 async function addTask(): Promise<void> {
   if (!selectedMachine.value || !newPrompt.value || !newCwd.value) return;
-  await fetch(`/api/queues/${selectedMachine.value}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: newPrompt.value, cwd: newCwd.value }),
-  });
-  showAddTask.value = false;
-  newPrompt.value = '';
-  newCwd.value = '';
-  await fetchQueues();
+  error.value = null;
+  try {
+    const res = await fetch(`/api/queues/${selectedMachine.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: newPrompt.value, cwd: newCwd.value }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    showAddTask.value = false;
+    newPrompt.value = '';
+    newCwd.value = '';
+    await fetchQueues();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to add task';
+  }
 }
 
 async function removeTask(machineId: string, taskId: string): Promise<void> {
-  await fetch(`/api/queues/${machineId}/${taskId}`, { method: 'DELETE' });
-  await fetchQueues();
+  try {
+    const res = await fetch(`/api/queues/${machineId}/${taskId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await fetchQueues();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to remove task';
+  }
 }
 
 async function reorder(machineId: string, tasks: QueueTask[]): Promise<void> {
-  await fetch(`/api/queues/${machineId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order: tasks.map((t) => t.id) }),
-  });
+  try {
+    const res = await fetch(`/api/queues/${machineId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: tasks.map((t) => t.id) }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch {
+    // Rollback: re-fetch server state on failure
+    await fetchQueues();
+  }
 }
 
 function moveUp(machineId: string, idx: number): void {
@@ -79,6 +101,10 @@ function moveDown(machineId: string, idx: number): void {
         Add Task
       </v-btn>
     </div>
+
+    <v-alert v-if="error" type="error" variant="tonal" closable class="mb-4" @click:close="error = null">
+      {{ error }}
+    </v-alert>
 
     <v-skeleton-loader v-if="loading" type="card" />
 

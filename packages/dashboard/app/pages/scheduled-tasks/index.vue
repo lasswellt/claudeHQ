@@ -18,6 +18,7 @@ interface ScheduledTask {
 
 const tasks = ref<ScheduledTask[]>([]);
 const loading = ref(true);
+const error = ref<string | null>(null);
 const showCreate = ref(false);
 const newName = ref('');
 const newCron = ref('');
@@ -29,45 +30,69 @@ onMounted(fetchTasks);
 
 async function fetchTasks(): Promise<void> {
   loading.value = true;
-  const res = await fetch('/api/scheduled-tasks');
-  tasks.value = (await res.json()) as ScheduledTask[];
-  loading.value = false;
+  error.value = null;
+  try {
+    const res = await fetch('/api/scheduled-tasks');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    tasks.value = (await res.json()) as ScheduledTask[];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load scheduled tasks';
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function createTask(): Promise<void> {
   if (!newName.value || !newCron.value || !newPrompt.value || !newCwd.value) return;
   creating.value = true;
-  await fetch('/api/scheduled-tasks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: newName.value,
-      cronExpression: newCron.value,
-      prompt: newPrompt.value,
-      cwd: newCwd.value,
-    }),
-  });
-  showCreate.value = false;
-  newName.value = '';
-  newCron.value = '';
-  newPrompt.value = '';
-  newCwd.value = '';
-  creating.value = false;
-  await fetchTasks();
+  error.value = null;
+  try {
+    const res = await fetch('/api/scheduled-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: newName.value,
+        cronExpression: newCron.value,
+        prompt: newPrompt.value,
+        cwd: newCwd.value,
+      }),
+    });
+    if (!res.ok) throw new Error(`Failed to create task: HTTP ${res.status}`);
+    showCreate.value = false;
+    newName.value = '';
+    newCron.value = '';
+    newPrompt.value = '';
+    newCwd.value = '';
+    await fetchTasks();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to create task';
+  } finally {
+    creating.value = false;
+  }
 }
 
 async function toggleEnabled(task: ScheduledTask): Promise<void> {
-  await fetch(`/api/scheduled-tasks/${task.id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled: !task.enabled }),
-  });
-  await fetchTasks();
+  try {
+    const res = await fetch(`/api/scheduled-tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: !task.enabled }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await fetchTasks();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to update task';
+  }
 }
 
 async function deleteTask(id: string): Promise<void> {
-  await fetch(`/api/scheduled-tasks/${id}`, { method: 'DELETE' });
-  await fetchTasks();
+  try {
+    const res = await fetch(`/api/scheduled-tasks/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await fetchTasks();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to delete task';
+  }
 }
 </script>
 
@@ -79,6 +104,12 @@ async function deleteTask(id: string): Promise<void> {
     </div>
 
     <v-skeleton-loader v-if="loading" type="table" />
+    <v-alert v-else-if="error" type="error" variant="tonal">
+      {{ error }}
+      <template #append>
+        <v-btn variant="text" @click="fetchTasks">Retry</v-btn>
+      </template>
+    </v-alert>
     <v-alert v-else-if="tasks.length === 0" type="info" variant="tonal">
       No scheduled tasks. Create one to run prompts on a cron schedule.
     </v-alert>

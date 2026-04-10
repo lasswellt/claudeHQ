@@ -275,22 +275,26 @@ export async function approvalRoutes(
   app.post('/api/approvals/bulk/respond', async (req) => {
     const body = bulkBody.parse(req.body);
     const status = body.decision === 'approve' ? 'approved' : 'denied';
-    let resolved = 0;
 
-    for (const id of body.approvalIds) {
-      const result = resolveApprovalStmt.run(status, 'user', null, null, id);
-      if (result.changes > 0) {
-        resolved++;
-        audit.append({
-          action: 'approval.resolve',
-          entityType: 'approval',
-          entityId: id,
-          actor: 'user',
-          details: { decision: body.decision, bulk: true },
-        });
+    const bulkResolve = db.transaction(() => {
+      let resolved = 0;
+      for (const id of body.approvalIds) {
+        const result = resolveApprovalStmt.run(status, 'user', null, null, id);
+        if (result.changes > 0) {
+          resolved++;
+          audit.append({
+            action: 'approval.resolve',
+            entityType: 'approval',
+            entityId: id,
+            actor: 'user',
+            details: { decision: body.decision, bulk: true },
+          });
+        }
       }
-    }
+      return resolved;
+    });
 
+    const resolved = bulkResolve();
     return { resolved, total: body.approvalIds.length };
   });
 

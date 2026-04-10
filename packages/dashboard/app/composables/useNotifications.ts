@@ -19,6 +19,10 @@ export function useNotifications() {
   let cleanup: (() => void) | null = null;
 
   function init(): void {
+    // Tear down any previous handler to avoid accumulation on re-mount
+    cleanup?.();
+    cleanup = null;
+
     const ws = useWebSocket();
 
     cleanup = ws.onMessage('notification', (msg: HubToDashboardMessage) => {
