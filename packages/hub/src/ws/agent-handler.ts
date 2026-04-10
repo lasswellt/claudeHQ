@@ -83,11 +83,29 @@ export class AgentHandler {
           case 'agent:workspace:error':
             this.handleWorkspaceError(msg);
             break;
+          // E007: container sandbox lifecycle handlers.
+          case 'agent:container:created':
+            this.handleContainerCreated(msg);
+            break;
+          case 'agent:container:started':
+            this.handleContainerStarted(msg);
+            break;
+          case 'agent:container:stdout':
+            this.handleContainerStdout(msg);
+            break;
+          case 'agent:container:exited':
+            this.handleContainerExited(msg);
+            break;
+          case 'agent:container:stats':
+            this.handleContainerStats(msg);
+            break;
+          case 'agent:container:error':
+            this.handleContainerError(msg);
+            break;
           default:
-            // Approval / container messages are members of the discriminated
-            // union (HI-01 fix) but their handlers land in E002 (approvals)
-            // and E007 (container sandbox). Log and drop so unhandled-but-
-            // valid messages are observable.
+            // Approval messages are members of the discriminated union
+            // (HI-01 fix) but their handlers land in E002 (approvals).
+            // Log and drop so unhandled-but-valid messages are observable.
             this.app.log.debug({ type: (msg as { type: string }).type }, 'Unhandled agent message');
             break;
         }
@@ -296,6 +314,130 @@ export class AgentHandler {
     this.app.log.warn(
       { workspaceId: msg.workspaceId, error: msg.error, phase: msg.phase },
       'Workspace error',
+    );
+  }
+
+  // ── E007: Container sandbox lifecycle handlers ───────────────────────────
+
+  private handleContainerCreated(msg: {
+    jobId: string;
+    containerId: string;
+  }): void {
+    this.db
+      .prepare("UPDATE jobs SET status = 'preparing' WHERE id = ? AND status IN ('pending', 'provisioning')")
+      .run(msg.jobId);
+    this.app.log.info({ jobId: msg.jobId, containerId: msg.containerId }, 'Container created');
+  }
+
+  private handleContainerStarted(msg: {
+    jobId: string;
+    containerId: string;
+  }): void {
+    this.db
+      .prepare(
+        "UPDATE jobs SET status = 'running', started_at = unixepoch() WHERE id = ? AND status NOT IN ('completed', 'failed', 'cancelled')",
+      )
+      .run(msg.jobId);
+
+    this.broadcastToDashboard({
+      type: 'job:updated',
+      jobId: msg.jobId,
+      status: 'running',
+      containerId: msg.containerId,
+    });
+    this.app.log.info({ jobId: msg.jobId, containerId: msg.containerId }, 'Container started');
+  }
+
+  private handleContainerStdout(msg: {
+    containerId: string;
+    data: string;
+  }): void {
+    // Forward output to dashboard so live streaming works for container jobs.
+    // We use the containerId as the stream identifier so the dashboard can
+    // subscribe to it independently of session IDs.
+    this.broadcastToDashboard({
+      type: 'container:output',
+      containerId: msg.containerId,
+      data: msg.data,
+    });
+  }
+
+  private handleContainerExited(msg: {
+    jobId: string;
+    containerId: string;
+    exitCode: number;
+    commitHash: string | null;
+    filesChanged: number;
+    branch: string;
+  }): void {
+    const finalStatus = msg.exitCode === 0 ? 'completed' : 'failed';
+
+    this.db
+      .prepare(
+        `UPDATE jobs
+         SET status = ?, ended_at = unixepoch(),
+             files_changed = ?, branch_created = ?
+         WHERE id = ?`,
+      )
+      .run(finalStatus, msg.filesChanged, msg.branch, msg.jobId);
+
+    this.broadcastToDashboard({
+      type: 'job:updated',
+      jobId: msg.jobId,
+      status: finalStatus,
+      containerId: msg.containerId,
+      exitCode: msg.exitCode,
+      commitHash: msg.commitHash,
+      filesChanged: msg.filesChanged,
+      branch: msg.branch,
+    });
+
+    this.app.log.info(
+      { jobId: msg.jobId, containerId: msg.containerId, exitCode: msg.exitCode, status: finalStatus },
+      'Container exited',
+    );
+  }
+
+  private handleContainerStats(msg: {
+    containerId: string;
+    cpuPercent: number;
+    memoryMB: number;
+    pids: number;
+  }): void {
+    // Forward stats to dashboard for live monitoring — no DB persistence needed
+    this.broadcastToDashboard({
+      type: 'container:stats',
+      containerId: msg.containerId,
+      cpuPercent: msg.cpuPercent,
+      memoryMB: msg.memoryMB,
+      pids: msg.pids,
+    });
+  }
+
+  private handleContainerError(msg: {
+    jobId: string;
+    containerId?: string | undefined;
+    error: string;
+    phase: string;
+  }): void {
+    this.db
+      .prepare(
+        "UPDATE jobs SET status = 'failed', ended_at = unixepoch(), error_message = ? WHERE id = ?",
+      )
+      .run(`Container error in phase '${msg.phase}': ${msg.error}`, msg.jobId);
+
+    this.broadcastToDashboard({
+      type: 'job:updated',
+      jobId: msg.jobId,
+      status: 'failed',
+      containerId: msg.containerId,
+      error: msg.error,
+      phase: msg.phase,
+    });
+
+    this.app.log.error(
+      { jobId: msg.jobId, containerId: msg.containerId, error: msg.error, phase: msg.phase },
+      'Container error',
     );
   }
 
